@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>CasaFlow — Gestão de Atividades</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
@@ -37,8 +37,8 @@
       <div class="field-group">
         <label>Senha <span class="hint">(4–8 caracteres)</span></label>
         <div class="pwd-wrap">
-          <input type="password" id="loginPass" placeholder="••••••••" maxlength="8">
-          <button class="eye-btn" onclick="togglePwd('loginPass',this)">👁</button>
+          <input type="password" id="loginPass" placeholder="••••••••" maxlength="8" autocomplete="current-password">
+          <button class="eye-btn" onclick="togglePwd('loginPass',this)" type="button">👁</button>
         </div>
       </div>
       <div id="loginError" class="error-msg"></div>
@@ -49,24 +49,24 @@
     <div id="registerForm" class="auth-form hidden">
       <div class="field-group">
         <label>Nome completo</label>
-        <input type="text" id="regName" placeholder="ex: Maria Silva">
+        <input type="text" id="regName" placeholder="ex: Maria Silva" autocomplete="name">
       </div>
       <div class="field-group">
         <label>Usuário</label>
-        <input type="text" id="regUser" placeholder="ex: maria">
+        <input type="text" id="regUser" placeholder="ex: maria" autocomplete="username">
       </div>
       <div class="field-group">
         <label>Senha <span class="hint">(4–8 caracteres)</span></label>
         <div class="pwd-wrap">
-          <input type="password" id="regPass" placeholder="mín. 4 caracteres" minlength="4" maxlength="8">
-          <button class="eye-btn" onclick="togglePwd('regPass',this)">👁</button>
+          <input type="password" id="regPass" placeholder="mín. 4 caracteres" minlength="4" maxlength="8" autocomplete="new-password">
+          <button class="eye-btn" onclick="togglePwd('regPass',this)" type="button">👁</button>
         </div>
       </div>
       <div class="field-group">
         <label>Confirmar senha</label>
         <div class="pwd-wrap">
-          <input type="password" id="regPass2" placeholder="repita a senha" maxlength="8">
-          <button class="eye-btn" onclick="togglePwd('regPass2',this)">👁</button>
+          <input type="password" id="regPass2" placeholder="repita a senha" maxlength="8" autocomplete="new-password">
+          <button class="eye-btn" onclick="togglePwd('regPass2',this)" type="button">👁</button>
         </div>
       </div>
       <div id="regError" class="error-msg"></div>
@@ -85,7 +85,7 @@
         <span class="logo-icon">⌂</span>
         <span class="logo-text">CasaFlow</span>
       </div>
-      <button class="sidebar-close" onclick="toggleSidebar()">✕</button>
+      <button class="sidebar-close" onclick="toggleSidebar()" aria-label="Fechar menu">✕</button>
     </div>
     <nav class="nav-menu">
       <a class="nav-item active" onclick="showPage('dashboard')" data-page="dashboard">
@@ -115,7 +115,7 @@
 
   <!-- TOPBAR -->
   <header class="topbar">
-    <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+    <button class="menu-btn" onclick="toggleSidebar()" aria-label="Abrir menu">☰</button>
     <div class="page-title" id="pageTitle">Dashboard</div>
     <div class="topbar-right">
       <span class="date-badge" id="dateBadge"></span>
@@ -239,7 +239,7 @@
   <div class="modal">
     <div class="modal-header">
       <h3 id="modalAtivTitle">Nova Atividade</h3>
-      <button onclick="closeModal('modalAtividade')">✕</button>
+      <button onclick="closeModal('modalAtividade')" type="button">✕</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="ativId">
@@ -254,7 +254,7 @@
       <div class="form-row">
         <div class="field-group">
           <label>Período / Sub-atividade</label>
-          <input type="text" id="ativPeriodo" placeholder="ex: Café da Manhã, Manhã, Semanal...">
+          <input type="text" id="ativPeriodo" placeholder="ex: Manhã, Semanal...">
         </div>
         <div class="field-group">
           <label>Recorrência</label>
@@ -291,15 +291,15 @@
       <div class="field-group">
         <label>Prioridade</label>
         <div class="priority-btns" id="ativPriorid">
-          <button class="prio-btn" data-val="baixa" onclick="setPriority(this)">Baixa</button>
-          <button class="prio-btn active" data-val="media" onclick="setPriority(this)">Média</button>
-          <button class="prio-btn" data-val="alta" onclick="setPriority(this)">Alta</button>
+          <button class="prio-btn" data-val="baixa" onclick="setPriority(this)" type="button">Baixa</button>
+          <button class="prio-btn active" data-val="media" onclick="setPriority(this)" type="button">Média</button>
+          <button class="prio-btn" data-val="alta" onclick="setPriority(this)" type="button">Alta</button>
         </div>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn-secondary" onclick="closeModal('modalAtividade')">Cancelar</button>
-      <button class="btn-primary" onclick="salvarAtividade()">Salvar</button>
+      <button class="btn-secondary" onclick="closeModal('modalAtividade')" type="button">Cancelar</button>
+      <button class="btn-primary" onclick="salvarAtividade()" type="button">Salvar</button>
     </div>
   </div>
 </div>
@@ -309,7 +309,7 @@
   <div class="modal">
     <div class="modal-header">
       <h3>Nova Designação</h3>
-      <button onclick="closeModal('modalDesignacao')">✕</button>
+      <button onclick="closeModal('modalDesignacao')" type="button">✕</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="desigId">
@@ -341,8 +341,8 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn-secondary" onclick="closeModal('modalDesignacao')">Cancelar</button>
-      <button class="btn-primary" onclick="salvarDesignacao()">Salvar</button>
+      <button class="btn-secondary" onclick="closeModal('modalDesignacao')" type="button">Cancelar</button>
+      <button class="btn-primary" onclick="salvarDesignacao()" type="button">Salvar</button>
     </div>
   </div>
 </div>
@@ -352,7 +352,7 @@
   <div class="modal">
     <div class="modal-header">
       <h3 id="modalGestaoTitle">Nova Área de Gestão</h3>
-      <button onclick="closeModal('modalGestao')">✕</button>
+      <button onclick="closeModal('modalGestao')" type="button">✕</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="gestaoId">
@@ -376,8 +376,8 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn-secondary" onclick="closeModal('modalGestao')">Cancelar</button>
-      <button class="btn-primary" onclick="salvarGestao()">Salvar</button>
+      <button class="btn-secondary" onclick="closeModal('modalGestao')" type="button">Cancelar</button>
+      <button class="btn-primary" onclick="salvarGestao()" type="button">Salvar</button>
     </div>
   </div>
 </div>
@@ -387,7 +387,7 @@
   <div class="modal">
     <div class="modal-header">
       <h3>Adicionar Responsável</h3>
-      <button onclick="closeModal('modalResponsavel')">✕</button>
+      <button onclick="closeModal('modalResponsavel')" type="button">✕</button>
     </div>
     <div class="modal-body">
       <div class="field-group">
@@ -404,8 +404,8 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn-secondary" onclick="closeModal('modalResponsavel')">Cancelar</button>
-      <button class="btn-primary" onclick="salvarResponsavel()">Salvar</button>
+      <button class="btn-secondary" onclick="closeModal('modalResponsavel')" type="button">Cancelar</button>
+      <button class="btn-primary" onclick="salvarResponsavel()" type="button">Salvar</button>
     </div>
   </div>
 </div>
