@@ -1,91 +1,92 @@
 /* ================================================================
-   CasaFlow — app.js
-   Arquitetura POO: Database · Auth · UI · Charts · App
+   CasaFlow — app.js  (v2 — Recorrência por período)
+   POO: Database · Auth · Periodo · UI · Charts · App
 ================================================================ */
 
 'use strict';
 
-// ─────────────────────────────────────────────
-// CONFIGURAÇÃO SUPABASE
-// ─────────────────────────────────────────────
 const SUPABASE_URL = 'https://hyyjetmxkvuodozxwgif.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ulmNU-GR3i8cxTCTVT6lGg_CZ14LE8C';
 
-// ─────────────────────────────────────────────
-// CLASSE: Database (camada de acesso a dados)
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// CLASSE: Periodo — calcula datas de referência por recorrência
+// ─────────────────────────────────────────────────────────────
+class Periodo {
+  /**
+   * Retorna a data-chave do período atual:
+   *   diaria  → hoje           ex: "2025-05-06"
+   *   semanal → segunda-feira  ex: "2025-05-05"
+   *   mensal  → dia 01 do mês  ex: "2025-05-01"
+   *   unica   → null (usa campo status da atividade)
+   */
+  static getRef(recorrencia) {
+    const hoje = new Date();
+    if (recorrencia === 'diaria') return Periodo.iso(hoje);
+    if (recorrencia === 'semanal') {
+      const dow = hoje.getDay();
+      const seg = new Date(hoje);
+      seg.setDate(hoje.getDate() - (dow === 0 ? 6 : dow - 1));
+      return Periodo.iso(seg);
+    }
+    if (recorrencia === 'mensal') {
+      const m = String(hoje.getMonth() + 1).padStart(2, '0');
+      return `${hoje.getFullYear()}-${m}-01`;
+    }
+    return null;
+  }
+
+  static iso(date) { return date.toISOString().slice(0, 10); }
+  static hoje()    { return Periodo.iso(new Date()); }
+
+  static icone(recorrencia) {
+    return { diaria: '☀️', semanal: '📅', mensal: '📆', unica: '📌' }[recorrencia] ?? '📋';
+  }
+
+  static label(recorrencia) {
+    return { diaria: 'Diária', semanal: 'Semanal', mensal: 'Mensal', unica: 'Única vez' }[recorrencia] ?? recorrencia;
+  }
+
+  static labelPeriodo(recorrencia) {
+    return { diaria: 'hoje', semanal: 'esta semana', mensal: 'este mês', unica: '' }[recorrencia] ?? '';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// CLASSE: Database — camada de acesso REST ao Supabase
+// ─────────────────────────────────────────────────────────────
 class Database {
   constructor(url, key) {
     this.base = `${url}/rest/v1`;
     this.headers = {
-      'apikey': key,
-      'Authorization': `Bearer ${key}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'return=representation'
+      'apikey': key, 'Authorization': `Bearer ${key}`,
+      'Content-Type': 'application/json', 'Prefer': 'return=representation'
     };
   }
 
-  async #request(endpoint, options = {}) {
-    try {
-      const res = await fetch(`${this.base}${endpoint}`, {
-        headers: this.headers,
-        ...options
-      });
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(err);
-      }
-      const text = await res.text();
-      return text ? JSON.parse(text) : [];
-    } catch (e) {
-      console.error('[DB Error]', e);
-      throw e;
-    }
+  async #req(endpoint, opts = {}) {
+    const res = await fetch(`${this.base}${endpoint}`, { headers: this.headers, ...opts });
+    if (!res.ok) throw new Error(await res.text());
+    const t = await res.text();
+    return t ? JSON.parse(t) : [];
   }
 
-  select(table, query = '') {
-    const qs = query ? `?${query}` : '';
-    return this.#request(`/${table}${qs}`);
-  }
-
-  insert(table, data) {
-    return this.#request(`/${table}`, {
-      method: 'POST',
-      body: JSON.stringify(data)
-    });
-  }
-
-  update(table, id, data) {
-    return this.#request(`/${table}?id=eq.${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data)
-    });
-  }
-
-  remove(table, id) {
-    return this.#request(`/${table}?id=eq.${id}`, {
-      method: 'DELETE'
-    });
-  }
-
-  removeWhere(table, field, value) {
-    return this.#request(`/${table}?${field}=eq.${value}`, {
-      method: 'DELETE'
-    });
-  }
+  select(table, qs = '')    { return this.#req(`/${table}${qs ? '?' + qs : ''}`); }
+  insert(table, data)       { return this.#req(`/${table}`, { method: 'POST', body: JSON.stringify(data) }); }
+  update(table, id, data)   { return this.#req(`/${table}?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  remove(table, id)         { return this.#req(`/${table}?id=eq.${id}`, { method: 'DELETE' }); }
+  removeWhere(t, f, v)      { return this.#req(`/${t}?${f}=eq.${v}`, { method: 'DELETE' }); }
 }
 
-// ─────────────────────────────────────────────
-// CLASSE: Auth (autenticação customizada)
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// CLASSE: Auth — autenticação com tabela usuarios
+// ─────────────────────────────────────────────────────────────
 class Auth {
-  #db;
-  #user = null;
+  #db; #user = null;
 
   constructor(db) {
     this.#db = db;
-    const saved = localStorage.getItem('cf_user');
-    if (saved) this.#user = JSON.parse(saved);
+    const s = localStorage.getItem('cf_user');
+    if (s) try { this.#user = JSON.parse(s); } catch {}
   }
 
   get currentUser() { return this.#user; }
@@ -93,9 +94,7 @@ class Auth {
 
   async login(username, senha) {
     if (!username || !senha) throw new Error('Preencha usuário e senha');
-    const rows = await this.#db.select('usuarios',
-      `username=eq.${encodeURIComponent(username)}&senha=eq.${encodeURIComponent(senha)}`
-    );
+    const rows = await this.#db.select('usuarios', `username=eq.${encodeURIComponent(username)}&senha=eq.${encodeURIComponent(senha)}`);
     if (!rows.length) throw new Error('Usuário ou senha incorretos');
     this.#user = rows[0];
     localStorage.setItem('cf_user', JSON.stringify(rows[0]));
@@ -105,266 +104,185 @@ class Auth {
   async register(nome, username, senha) {
     if (!nome || !username || !senha) throw new Error('Preencha todos os campos');
     if (senha.length < 4) throw new Error('Senha deve ter no mínimo 4 caracteres');
-    const existing = await this.#db.select('usuarios', `username=eq.${encodeURIComponent(username)}`);
-    if (existing.length) throw new Error('Usuário já existe');
+    const ex = await this.#db.select('usuarios', `username=eq.${encodeURIComponent(username)}`);
+    if (ex.length) throw new Error('Usuário já existe');
     const rows = await this.#db.insert('usuarios', { nome, username, senha });
     this.#user = rows[0];
     localStorage.setItem('cf_user', JSON.stringify(rows[0]));
     return rows[0];
   }
 
-  logout() {
-    this.#user = null;
-    localStorage.removeItem('cf_user');
-  }
+  logout() { this.#user = null; localStorage.removeItem('cf_user'); }
 }
 
-// ─────────────────────────────────────────────
-// CLASSE: UI (renderização e modais)
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// CLASSE: UI — renderização, modais e utilitários estáticos
+// ─────────────────────────────────────────────────────────────
 class UI {
-  static EMOJIS = ['😊','😎','🦁','🐻','🦊','🐼','🌟','🔥','⚡','🎯','🏆','💪','🌈','🍀','🎨'];
+  static EMOJIS = ['😊','😎','🦁','🐻','🦊','🐼','🌟','🔥','⚡','🎯','🏆','💪','🌈','🍀','🎨','🐙','🦋','🦄'];
 
   static toast(msg, type = 'success') {
     const el = document.getElementById('toast');
-    el.textContent = msg;
-    el.className = `toast ${type}`;
-    el.classList.remove('hidden');
-    clearTimeout(UI._toastTimer);
-    UI._toastTimer = setTimeout(() => el.classList.add('hidden'), 3200);
+    el.textContent = msg; el.className = `toast ${type}`; el.classList.remove('hidden');
+    clearTimeout(UI._tt);
+    UI._tt = setTimeout(() => el.classList.add('hidden'), 3200);
   }
 
-  static openModal(id) {
-    document.getElementById(id)?.classList.remove('hidden');
-  }
-
-  static closeModal(id) {
-    document.getElementById(id)?.classList.add('hidden');
-  }
-
-  static closeModalOut(e, id) {
-    if (e.target.id === id) UI.closeModal(id);
-  }
+  static openModal(id)          { document.getElementById(id)?.classList.remove('hidden'); }
+  static closeModal(id)         { document.getElementById(id)?.classList.add('hidden'); }
+  static closeModalOut(e, id)   { if (e.target.id === id) UI.closeModal(id); }
 
   static togglePwd(inputId, btn) {
-    const inp = document.getElementById(inputId);
-    if (!inp) return;
+    const inp = document.getElementById(inputId); if (!inp) return;
     const show = inp.type === 'password';
     inp.type = show ? 'text' : 'password';
     btn.textContent = show ? '🙈' : '👁';
   }
 
-  static populateSelect(selectId, items, valueFn, labelFn, placeholder = '— Selecionar —') {
-    const sel = document.getElementById(selectId);
-    if (!sel) return;
-    const current = sel.value;
-    sel.innerHTML = `<option value="">${placeholder}</option>`;
-    items.forEach(item => {
-      const opt = document.createElement('option');
-      opt.value = valueFn(item);
-      opt.textContent = labelFn(item);
-      sel.appendChild(opt);
-    });
-    if (current) sel.value = current;
+  static populateSelect(selId, items, valFn, lblFn, ph = '— Selecionar —') {
+    const sel = document.getElementById(selId); if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">${ph}</option>` + items.map(i => `<option value="${valFn(i)}">${lblFn(i)}</option>`).join('');
+    if (cur) sel.value = cur;
   }
 
-  static buildEmojiPicker(containerId, selectedEmoji = '😊') {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.innerHTML = '';
-    UI.EMOJIS.forEach(em => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'emoji-opt' + (em === selectedEmoji ? ' selected' : '');
-      btn.textContent = em;
-      btn.dataset.emoji = em;
-      btn.onclick = () => {
-        container.querySelectorAll('.emoji-opt').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-      };
-      container.appendChild(btn);
-    });
+  static buildEmojiPicker(containerId, selected = '😊') {
+    const c = document.getElementById(containerId); if (!c) return;
+    c.innerHTML = UI.EMOJIS.map(em =>
+      `<button type="button" class="emoji-opt${em === selected ? ' selected' : ''}" data-emoji="${em}"
+        onclick="this.closest('.emoji-picker').querySelectorAll('.emoji-opt').forEach(b=>b.classList.remove('selected'));this.classList.add('selected')">${em}</button>`
+    ).join('');
   }
 
-  static getSelectedEmoji(containerId) {
-    const sel = document.querySelector(`#${containerId} .emoji-opt.selected`);
-    return sel ? sel.dataset.emoji : '😊';
+  static getSelectedEmoji(cId) {
+    return document.querySelector(`#${cId} .emoji-opt.selected`)?.dataset.emoji ?? '😊';
   }
 
   static setPriority(btn) {
-    btn.closest('.priority-btns')?.querySelectorAll('.prio-btn')
-      .forEach(b => b.classList.remove('active'));
+    btn.closest('.priority-btns')?.querySelectorAll('.prio-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
   }
 
-  static getActivePriority() {
-    return document.querySelector('.prio-btn.active')?.dataset.val ?? 'media';
-  }
+  static getActivePriority() { return document.querySelector('.prio-btn.active')?.dataset.val ?? 'media'; }
 
   static setActivePriority(val) {
-    document.querySelectorAll('.prio-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.val === val);
-    });
+    document.querySelectorAll('.prio-btn').forEach(b => b.classList.toggle('active', b.dataset.val === val));
   }
 
-  static badge(text, cls) {
-    return `<span class="badge badge-${cls}">${text}</span>`;
-  }
+  static badge(text, cls) { return `<span class="badge badge-${cls}">${text}</span>`; }
 
-  static statusBadge(status) {
-    const map = { pendente: 'Pendente', em_andamento: 'Em andamento', concluida: 'Concluída' };
-    return UI.badge(map[status] ?? status, status);
+  static statusBadge(concluido, recorrencia) {
+    const lbl = Periodo.labelPeriodo(recorrencia);
+    return concluido
+      ? `<span class="badge badge-concluida">✅ Feito${lbl ? ' ' + lbl : ''}</span>`
+      : `<span class="badge badge-pendente">⏳ Pendente</span>`;
   }
 
   static priorityBadge(p) {
-    const map = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
-    return UI.badge(map[p] ?? p, p);
+    return UI.badge({ baixa:'Baixa', media:'Média', alta:'Alta' }[p] ?? p, p);
   }
 
   static empty(msg = 'Nenhum item encontrado') {
     return `<div class="empty-state"><div class="empty-icon">📭</div><p>${msg}</p></div>`;
   }
 
-  static loading() {
-    return `<div class="empty-state"><div class="empty-icon">⏳</div><p>Carregando...</p></div>`;
+  static progressBar(done, total) {
+    const pct = total > 0 ? Math.round(done / total * 100) : 0;
+    return `
+      <div class="progress-wrap">
+        <div class="progress-fill" style="width:${pct}%"></div>
+      </div>
+      <span class="progress-label">${done}/${total} • ${pct}%</span>`;
   }
 }
 
-// ─────────────────────────────────────────────
-// CLASSE: Charts (gráficos Chart.js)
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// CLASSE: Charts — gráficos Chart.js
+// ─────────────────────────────────────────────────────────────
 class Charts {
-  #instances = {};
+  #inst = {};
+  #pal  = ['#6c63ff','#43e97b','#f9ca24','#ff6b6b','#74b9ff','#fd79a8','#a29bfe'];
 
-  #palette = ['#6c63ff','#43e97b','#f9ca24','#ff6b6b','#74b9ff','#fd79a8'];
-
-  #defaultOpts(type) {
-    const base = {
-      responsive: true,
-      maintainAspectRatio: true,
+  #opts(type) {
+    const b = {
+      responsive: true, maintainAspectRatio: true,
       plugins: {
-        legend: {
-          labels: { color: '#8990a8', font: { family: 'DM Sans', size: 12 } }
-        },
+        legend: { labels: { color: '#8990a8', font: { family: 'DM Sans', size: 12 } } },
         tooltip: { backgroundColor: '#1e2330', titleColor: '#eef0f5', bodyColor: '#8990a8' }
       }
     };
     if (type === 'bar' || type === 'line') {
-      base.scales = {
+      b.scales = {
         x: { ticks: { color: '#8990a8' }, grid: { color: 'rgba(255,255,255,0.04)' } },
-        y: { ticks: { color: '#8990a8' }, grid: { color: 'rgba(255,255,255,0.04)' } }
+        y: { ticks: { color: '#8990a8' }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }
       };
     }
-    return base;
+    return b;
   }
 
-  #destroy(id) {
-    if (this.#instances[id]) {
-      this.#instances[id].destroy();
-      delete this.#instances[id];
-    }
-  }
+  #destroy(id) { if (this.#inst[id]) { this.#inst[id].destroy(); delete this.#inst[id]; } }
 
-  renderBar(canvasId, labels, data, label = '') {
-    this.#destroy(canvasId);
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
-    this.#instances[canvasId] = new Chart(ctx, {
+  bar(id, labels, data, label = '') {
+    this.#destroy(id);
+    const ctx = document.getElementById(id); if (!ctx) return;
+    this.#inst[id] = new Chart(ctx, {
       type: 'bar',
-      data: {
-        labels,
-        datasets: [{ label, data, backgroundColor: this.#palette, borderRadius: 6, borderSkipped: false }]
-      },
-      options: this.#defaultOpts('bar')
+      data: { labels, datasets: [{ label, data, backgroundColor: this.#pal, borderRadius: 6, borderSkipped: false }] },
+      options: this.#opts('bar')
     });
   }
 
-  renderDoughnut(canvasId, labels, data) {
-    this.#destroy(canvasId);
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
-    this.#instances[canvasId] = new Chart(ctx, {
+  doughnut(id, labels, data) {
+    this.#destroy(id);
+    const ctx = document.getElementById(id); if (!ctx) return;
+    this.#inst[id] = new Chart(ctx, {
       type: 'doughnut',
-      data: {
-        labels,
-        datasets: [{ data, backgroundColor: this.#palette, borderWidth: 0, hoverOffset: 6 }]
-      },
-      options: { ...this.#defaultOpts('doughnut'), cutout: '68%' }
+      data: { labels, datasets: [{ data, backgroundColor: this.#pal, borderWidth: 0, hoverOffset: 6 }] },
+      options: { ...this.#opts('doughnut'), cutout: '68%' }
     });
   }
 
-  renderLine(canvasId, labels, data, label = '') {
-    this.#destroy(canvasId);
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
-    this.#instances[canvasId] = new Chart(ctx, {
+  line(id, labels, data, label = '') {
+    this.#destroy(id);
+    const ctx = document.getElementById(id); if (!ctx) return;
+    this.#inst[id] = new Chart(ctx, {
       type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          label, data,
-          borderColor: '#6c63ff',
-          backgroundColor: 'rgba(108,99,255,0.12)',
-          borderWidth: 2.5,
-          pointBackgroundColor: '#6c63ff',
-          pointRadius: 4,
-          tension: 0.35,
-          fill: true
-        }]
-      },
-      options: this.#defaultOpts('line')
+      data: { labels, datasets: [{ label, data, borderColor: '#6c63ff', backgroundColor: 'rgba(108,99,255,0.12)', borderWidth: 2.5, pointBackgroundColor: '#6c63ff', pointRadius: 4, tension: 0.35, fill: true }] },
+      options: this.#opts('line')
     });
   }
 
-  renderPie(canvasId, labels, data) {
-    this.#destroy(canvasId);
-    const ctx = document.getElementById(canvasId);
-    if (!ctx) return;
-    this.#instances[canvasId] = new Chart(ctx, {
+  pie(id, labels, data) {
+    this.#destroy(id);
+    const ctx = document.getElementById(id); if (!ctx) return;
+    this.#inst[id] = new Chart(ctx, {
       type: 'pie',
-      data: {
-        labels,
-        datasets: [{ data, backgroundColor: this.#palette, borderWidth: 0, hoverOffset: 6 }]
-      },
-      options: this.#defaultOpts('pie')
+      data: { labels, datasets: [{ data, backgroundColor: this.#pal, borderWidth: 0, hoverOffset: 6 }] },
+      options: this.#opts('pie')
     });
   }
 }
 
-// ─────────────────────────────────────────────
-// CLASSE: App (controlador principal)
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// CLASSE: App — controlador principal
+// ─────────────────────────────────────────────────────────────
 class App {
-  #db;
-  #auth;
-  #ui;
-  #charts;
-
-  // Estado em memória
-  #state = {
-    responsaveis: [],
-    atividades: [],
-    designacoes: [],
-    areas: [],
-    membros: []
-  };
+  #db; #auth; #charts;
+  #state = { responsaveis:[], atividades:[], designacoes:[], areas:[], membros:[], conclusoes:[] };
 
   constructor() {
     this.#db     = new Database(SUPABASE_URL, SUPABASE_KEY);
     this.#auth   = new Auth(this.#db);
-    this.#ui     = new UI();
     this.#charts = new Charts();
   }
 
-  // ── INICIALIZAÇÃO ──────────────────────────
+  // ── INIT ──────────────────────────────────
   async init() {
-    this.#setDate();
-    if (this.#auth.isLoggedIn) {
-      await this.#loadAll();
-      this.#showApp();
-    } else {
-      this.#showAuth();
-    }
+    document.getElementById('dateBadge').textContent =
+      new Date().toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
+
+    if (this.#auth.isLoggedIn) { await this.#loadAll(); this.#showApp(); }
+    else { this.#showAuth(); }
     this.#bindGlobals();
   }
 
@@ -374,267 +292,291 @@ class App {
   }
 
   #showApp() {
-    const user = this.#auth.currentUser;
+    const u = this.#auth.currentUser;
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
-    document.getElementById('greetUser').textContent = user?.nome?.split(' ')[0] ?? '';
-    document.getElementById('sidebarUser').textContent = `👤 ${user?.username ?? ''}`;
-    const initials = (user?.nome ?? 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-    document.getElementById('topAvatar').textContent = initials;
+    document.getElementById('greetUser').textContent  = u?.nome?.split(' ')[0] ?? '';
+    document.getElementById('sidebarUser').textContent = `👤 ${u?.username ?? ''}`;
+    document.getElementById('topAvatar').textContent   =
+      (u?.nome ?? 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
     this.showPage('dashboard');
   }
 
-  #setDate() {
-    const el = document.getElementById('dateBadge');
-    if (el) el.textContent = new Date().toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
-  }
-
   async #loadAll() {
-    try {
-      const [resp, ativ, desig, areas, membros] = await Promise.all([
-        this.#db.select('responsaveis', 'order=nome.asc'),
-        this.#db.select('atividades',   'order=created_at.desc'),
-        this.#db.select('designacoes',  'order=created_at.desc'),
-        this.#db.select('areas_gestao', 'order=nome.asc'),
-        this.#db.select('area_membros')
-      ]);
-      this.#state.responsaveis = resp   ?? [];
-      this.#state.atividades   = ativ   ?? [];
-      this.#state.designacoes  = desig  ?? [];
-      this.#state.areas        = areas  ?? [];
-      this.#state.membros      = membros ?? [];
-    } catch (e) {
-      UI.toast('Erro ao carregar dados: ' + e.message, 'error');
-    }
+    const [resp, ativ, desig, areas, membros, conclusoes] = await Promise.all([
+      this.#db.select('responsaveis', 'order=nome.asc'),
+      this.#db.select('atividades',   'order=created_at.desc'),
+      this.#db.select('designacoes',  'order=created_at.desc'),
+      this.#db.select('areas_gestao', 'order=nome.asc'),
+      this.#db.select('area_membros'),
+      this.#db.select('registros_conclusao')
+    ]);
+    this.#state = {
+      responsaveis: resp       ?? [],
+      atividades:   ativ       ?? [],
+      designacoes:  desig      ?? [],
+      areas:        areas      ?? [],
+      membros:      membros    ?? [],
+      conclusoes:   conclusoes ?? []
+    };
   }
 
-  // ── NAVEGAÇÃO ──────────────────────────────
+  // ── LÓGICA DE RECORRÊNCIA ─────────────────
+  /**
+   * Verifica se a atividade está concluída no PERÍODO ATUAL.
+   * - Recorrentes: checa tabela registros_conclusao (se há registro para o ref atual)
+   * - Única: usa campo status da atividade
+   */
+  #isConcluida(atv) {
+    if (atv.recorrencia === 'unica') return atv.status === 'concluida';
+    const ref = Periodo.getRef(atv.recorrencia);
+    return this.#state.conclusoes.some(c => c.atividade_id === atv.id && c.periodo_ref === ref);
+  }
+
+  /**
+   * Alterna conclusão:
+   * - Recorrentes: insere/remove registro em registros_conclusao
+   *   → No próximo período (dia/semana/mês), a atividade voltará como pendente automaticamente
+   * - Única: atualiza status na tabela atividades
+   */
+  async toggleConclusao(ativId) {
+    const atv = this.#state.atividades.find(a => a.id === ativId);
+    if (!atv) return;
+
+    if (atv.recorrencia === 'unica') {
+      const novo = atv.status === 'concluida' ? 'pendente' : 'concluida';
+      await this.#db.update('atividades', ativId, { status: novo });
+      atv.status = novo;
+      UI.toast(novo === 'concluida' ? '✅ Concluída!' : '↩️ Reaberta');
+    } else {
+      const ref = Periodo.getRef(atv.recorrencia);
+      const existing = this.#state.conclusoes.find(c => c.atividade_id === ativId && c.periodo_ref === ref);
+      if (existing) {
+        await this.#db.remove('registros_conclusao', existing.id);
+        this.#state.conclusoes = this.#state.conclusoes.filter(c => c.id !== existing.id);
+        UI.toast('↩️ Marcada como pendente');
+      } else {
+        const rows = await this.#db.insert('registros_conclusao', { atividade_id: ativId, periodo_ref: ref });
+        if (rows[0]) this.#state.conclusoes.push(rows[0]);
+        UI.toast('✅ Concluída!');
+      }
+    }
+
+    // Re-renderizar página ativa sem recarregar do banco
+    const pageId = document.querySelector('.page:not(.hidden)')?.id?.replace('page-', '');
+    if (pageId) this.#renderPage(pageId, false);
+  }
+
+  // ── NAVEGAÇÃO ─────────────────────────────
   showPage(page) {
     document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-
-    const section = document.getElementById(`page-${page}`);
-    if (section) section.classList.remove('hidden');
-
-    const navItem = document.querySelector(`[data-page="${page}"]`);
-    if (navItem) navItem.classList.add('active');
-
-    const titles = {
-      dashboard: 'Dashboard', atividades: 'Atividades',
-      designacoes: 'Designações', gestao: 'Gestão de Área',
-      responsaveis: 'Responsáveis', relatorios: 'Relatórios'
-    };
-    const titleEl = document.getElementById('pageTitle');
-    if (titleEl) titleEl.textContent = titles[page] ?? page;
-
-    // Fechar sidebar no mobile
+    document.getElementById(`page-${page}`)?.classList.remove('hidden');
+    document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
+    const titles = { dashboard:'Dashboard', atividades:'Atividades', designacoes:'Designações', gestao:'Gestão de Área', responsaveis:'Responsáveis', relatorios:'Relatórios' };
+    document.getElementById('pageTitle').textContent = titles[page] ?? page;
     if (window.innerWidth < 768) this.toggleSidebar(false);
-
-    this.#renderPage(page);
+    this.#renderPage(page, true);
   }
 
-  async #renderPage(page) {
-    await this.#loadAll();
+  async #renderPage(page, reload = true) {
+    if (reload) await this.#loadAll();
     switch (page) {
-      case 'dashboard':    this.#renderDashboard();    break;
-      case 'atividades':   this.renderAtividades();     break;
-      case 'designacoes':  this.#renderDesignacoes();   break;
-      case 'gestao':       this.#renderGestao();        break;
-      case 'responsaveis': this.#renderResponsaveis();  break;
+      case 'dashboard':    this.#renderDashboard();   break;
+      case 'atividades':   this.renderAtividades();    break;
+      case 'designacoes':  this.#renderDesignacoes();  break;
+      case 'gestao':       this.#renderGestao();       break;
+      case 'responsaveis': this.#renderResponsaveis(); break;
     }
   }
 
-  // ── SIDEBAR ────────────────────────────────
   toggleSidebar(force) {
-    const sidebar = document.getElementById('sidebar');
-    if (!sidebar) return;
-    const isOpen = sidebar.classList.contains('open');
-    const open = force !== undefined ? force : !isOpen;
-    sidebar.classList.toggle('open', open);
-    // overlay para mobile
+    const sb = document.getElementById('sidebar'); if (!sb) return;
+    const open = force !== undefined ? force : !sb.classList.contains('open');
+    sb.classList.toggle('open', open);
     let overlay = document.getElementById('sidebarOverlay');
     if (open && window.innerWidth < 768) {
       if (!overlay) {
         overlay = document.createElement('div');
-        overlay.id = 'sidebarOverlay';
-        overlay.className = 'sidebar-overlay';
+        overlay.id = 'sidebarOverlay'; overlay.className = 'sidebar-overlay';
         overlay.onclick = () => this.toggleSidebar(false);
         document.body.appendChild(overlay);
       }
       overlay.classList.add('visible');
-    } else if (overlay) {
-      overlay.classList.remove('visible');
-    }
+    } else if (overlay) overlay.classList.remove('visible');
   }
 
-  // ── AUTH ───────────────────────────────────
+  // ── AUTH ──────────────────────────────────
   switchTab(tab) {
     document.getElementById('loginForm').classList.toggle('hidden', tab !== 'login');
     document.getElementById('registerForm').classList.toggle('hidden', tab !== 'register');
-    document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-      btn.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'register'));
-    });
+    document.querySelectorAll('.tab-btn').forEach((b, i) =>
+      b.classList.toggle('active', (i === 0) === (tab === 'login')));
   }
 
   async doLogin() {
-    const errEl = document.getElementById('loginError');
-    errEl.textContent = '';
-    const username = document.getElementById('loginUser').value.trim();
-    const senha    = document.getElementById('loginPass').value;
+    const errEl = document.getElementById('loginError'); errEl.textContent = '';
     try {
-      await this.#auth.login(username, senha);
-      await this.#loadAll();
-      this.#showApp();
-    } catch (e) {
-      errEl.textContent = e.message;
-    }
+      await this.#auth.login(document.getElementById('loginUser').value.trim(), document.getElementById('loginPass').value);
+      await this.#loadAll(); this.#showApp();
+    } catch (e) { errEl.textContent = e.message; }
   }
 
   async doRegister() {
-    const errEl = document.getElementById('regError');
-    errEl.textContent = '';
-    const nome    = document.getElementById('regName').value.trim();
-    const username = document.getElementById('regUser').value.trim();
-    const senha   = document.getElementById('regPass').value;
-    const senha2  = document.getElementById('regPass2').value;
-    if (senha !== senha2) { errEl.textContent = 'As senhas não coincidem'; return; }
+    const errEl = document.getElementById('regError'); errEl.textContent = '';
+    const s1 = document.getElementById('regPass').value, s2 = document.getElementById('regPass2').value;
+    if (s1 !== s2) { errEl.textContent = 'As senhas não coincidem'; return; }
     try {
-      await this.#auth.register(nome, username, senha);
-      await this.#loadAll();
-      this.#showApp();
-    } catch (e) {
-      errEl.textContent = e.message;
-    }
+      await this.#auth.register(document.getElementById('regName').value.trim(), document.getElementById('regUser').value.trim(), s1);
+      await this.#loadAll(); this.#showApp();
+    } catch (e) { errEl.textContent = e.message; }
   }
 
-  doLogout() {
-    this.#auth.logout();
-    this.#showAuth();
-  }
+  doLogout() { this.#auth.logout(); this.#showAuth(); }
 
-  // ── DASHBOARD ──────────────────────────────
+  // ── DASHBOARD ─────────────────────────────
   #renderDashboard() {
     const { atividades, responsaveis, areas } = this.#state;
-    const total     = atividades.length;
-    const concluidas = atividades.filter(a => a.status === 'concluida').length;
-    const pendentes  = atividades.filter(a => a.status === 'pendente').length;
-    const andamento  = atividades.filter(a => a.status === 'em_andamento').length;
 
+    const diarias  = atividades.filter(a => a.recorrencia === 'diaria');
+    const semanais = atividades.filter(a => a.recorrencia === 'semanal');
+    const mensais  = atividades.filter(a => a.recorrencia === 'mensal');
+    const unicas   = atividades.filter(a => a.recorrencia === 'unica');
+
+    const dDone = diarias.filter(a  => this.#isConcluida(a)).length;
+    const sDone = semanais.filter(a => this.#isConcluida(a)).length;
+    const mDone = mensais.filter(a  => this.#isConcluida(a)).length;
+    const uDone = unicas.filter(a   => this.#isConcluida(a)).length;
+
+    // Stats
     document.getElementById('statsGrid').innerHTML = `
-      <div class="stat-card c1"><div class="stat-icon">📋</div>
-        <div class="stat-val">${total}</div><div class="stat-label">Total de Atividades</div></div>
-      <div class="stat-card c2"><div class="stat-icon">✅</div>
-        <div class="stat-val">${concluidas}</div><div class="stat-label">Concluídas</div></div>
-      <div class="stat-card c3"><div class="stat-icon">⏳</div>
-        <div class="stat-val">${pendentes}</div><div class="stat-label">Pendentes</div></div>
-      <div class="stat-card c4"><div class="stat-icon">🔄</div>
-        <div class="stat-val">${andamento}</div><div class="stat-label">Em Andamento</div></div>
+      <div class="stat-card c1"><div class="stat-icon">☀️</div>
+        <div class="stat-val">${dDone}/${diarias.length}</div><div class="stat-label">Concluídas hoje</div></div>
+      <div class="stat-card c2"><div class="stat-icon">📅</div>
+        <div class="stat-val">${sDone}/${semanais.length}</div><div class="stat-label">Feitas esta semana</div></div>
+      <div class="stat-card c3"><div class="stat-icon">📆</div>
+        <div class="stat-val">${mDone}/${mensais.length}</div><div class="stat-label">Feitas este mês</div></div>
+      <div class="stat-card c4"><div class="stat-icon">📌</div>
+        <div class="stat-val">${uDone}/${unicas.length}</div><div class="stat-label">Únicas concluídas</div></div>
     `;
 
-    // Gráfico: conclusão por responsável
-    const barLabels = responsaveis.map(r => r.apelido || r.nome.split(' ')[0]);
-    const barData   = responsaveis.map(r =>
-      atividades.filter(a => a.responsavel_id === r.id && a.status === 'concluida').length
-    );
-    this.#charts.renderBar('chartBar', barLabels, barData, 'Concluídas');
+    // Seções de tarefas
+    this.#renderTaskSection('sectionDiarias',  diarias,  '☀️ Diárias — Hoje',          'diaria');
+    this.#renderTaskSection('sectionSemanais', semanais, '📅 Semanais — Esta Semana',   'semanal');
+    this.#renderTaskSection('sectionMensais',  mensais,  '📆 Mensais — Este Mês',       'mensal');
+    this.#renderTaskSection('sectionUnicas',   unicas,   '📌 Únicas / Avulsas',         'unica');
 
-    // Gráfico: status
-    this.#charts.renderDoughnut('chartDoughnut',
-      ['Pendente', 'Em andamento', 'Concluída'],
-      [pendentes, andamento, concluidas]
-    );
+    // Gráficos
+    this.#charts.doughnut('chartDoughnut', ['Diárias','Semanais','Mensais','Únicas'],
+      [diarias.length, semanais.length, mensais.length, unicas.length]);
 
-    // Gráfico: por período (linha, últimas 7 criações por dia)
-    const days = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(); d.setDate(d.getDate() - i);
-      days.push(d.toISOString().slice(0, 10));
-    }
-    const lineData = days.map(d =>
-      atividades.filter(a => (a.created_at || '').slice(0, 10) === d).length
-    );
-    this.#charts.renderLine('chartPeriod',
-      days.map(d => d.slice(5)), lineData, 'Atividades criadas'
+    this.#charts.bar('chartBar', ['Diárias','Semanais','Mensais','Únicas'],
+      [dDone, sDone, mDone, uDone], 'Concluídas no período');
+
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(); d.setDate(d.getDate() - (6 - i));
+      return Periodo.iso(d);
+    });
+    this.#charts.line('chartPeriod',
+      days.map(d => d.slice(5)),
+      days.map(d => this.#state.conclusoes.filter(c => c.periodo_ref === d).length),
+      'Conclusões'
     );
 
-    // Gráfico: por área
-    const areaLabels = areas.map(a => a.nome);
-    const areaData   = areas.map(a =>
-      atividades.filter(at => at.area_id === a.id).length
+    this.#charts.pie('chartArea',
+      areas.length ? areas.map(a => a.nome) : ['Sem área'],
+      areas.length ? areas.map(a => atividades.filter(at => at.area_id === a.id).length) : [1]
     );
-    this.#charts.renderPie('chartArea', areaLabels, areaData);
+  }
 
-    // Lista de hoje
-    const today = new Date().toISOString().slice(0, 10);
-    const todayItems = atividades.filter(a =>
-      a.recorrencia === 'diaria' || (a.created_at || '').slice(0, 10) === today
-    ).slice(0, 8);
+  #renderTaskSection(sectionId, atividades, titulo, recorrencia) {
+    const el = document.getElementById(sectionId); if (!el) return;
 
-    const todayList = document.getElementById('todayList');
-    if (!todayItems.length) {
-      todayList.innerHTML = UI.empty('Nenhuma atividade para hoje');
+    if (!atividades.length) {
+      el.innerHTML = `
+        <div class="task-section-header">
+          <span class="task-section-title">${titulo}</span>
+          <span class="task-empty-label">nenhuma cadastrada</span>
+        </div>`;
       return;
     }
-    todayList.innerHTML = todayItems.map(a => {
-      const resp = this.#state.responsaveis.find(r => r.id === a.responsavel_id);
-      const done = a.status === 'concluida';
-      return `
-        <div class="today-item">
-          <div class="today-check ${done ? 'done' : ''}" onclick="app.toggleTodayCheck('${a.id}', this)"></div>
-          <div class="today-info">
-            <div class="today-name ${done ? 'striked' : ''}">${a.nome}</div>
-            <div class="today-sub">${a.periodo || a.recorrencia}</div>
-          </div>
-          <span class="today-resp">${resp ? resp.emoji + ' ' + (resp.apelido || resp.nome.split(' ')[0]) : ''}</span>
+
+    const done  = atividades.filter(a => this.#isConcluida(a)).length;
+    const total = atividades.length;
+
+    // Ordenar: pendentes primeiro
+    const sorted = [...atividades].sort((a, b) => {
+      const da = this.#isConcluida(a) ? 1 : 0;
+      const db = this.#isConcluida(b) ? 1 : 0;
+      return da - db;
+    });
+
+    el.innerHTML = `
+      <div class="task-section-header">
+        <span class="task-section-title">${titulo}</span>
+        <div class="task-progress">
+          ${UI.progressBar(done, total)}
         </div>
-      `;
-    }).join('');
+      </div>
+      <div class="task-list">
+        ${sorted.map(a => {
+          const ok   = this.#isConcluida(a);
+          const resp = this.#state.responsaveis.find(r => r.id === a.responsavel_id);
+          return `
+            <div class="task-item ${ok ? 'task-done' : ''}">
+              <button class="task-check ${ok ? 'checked' : ''}" onclick="app.toggleConclusao('${a.id}')" title="${ok ? 'Desmarcar' : 'Marcar como feito'}">
+                ${ok ? '✓' : ''}
+              </button>
+              <div class="task-info">
+                <div class="task-name ${ok ? 'striked' : ''}">${a.nome}</div>
+                ${a.periodo ? `<div class="task-sub">🕐 ${a.periodo}</div>` : ''}
+              </div>
+              <div class="task-meta">
+                ${resp ? `<span class="task-resp">${resp.emoji} ${resp.apelido || resp.nome.split(' ')[0]}</span>` : ''}
+                ${UI.priorityBadge(a.prioridade)}
+              </div>
+            </div>`;
+        }).join('')}
+      </div>`;
   }
 
-  async toggleTodayCheck(id, el) {
-    const atv = this.#state.atividades.find(a => a.id === id);
-    if (!atv) return;
-    const newStatus = atv.status === 'concluida' ? 'pendente' : 'concluida';
-    await this.#db.update('atividades', id, { status: newStatus });
-    atv.status = newStatus;
-    el.classList.toggle('done', newStatus === 'concluida');
-    el.nextElementSibling.querySelector('.today-name').classList.toggle('striked', newStatus === 'concluida');
-    UI.toast(newStatus === 'concluida' ? 'Atividade concluída! ✅' : 'Atividade reaberta');
-    this.#renderDashboard();
-  }
-
-  // ── ATIVIDADES ─────────────────────────────
+  // ── ATIVIDADES ────────────────────────────
   renderAtividades() {
     const search  = (document.getElementById('searchAtiv')?.value ?? '').toLowerCase();
-    const status  = document.getElementById('filterStatus')?.value ?? '';
-    const respId  = document.getElementById('filterResp')?.value ?? '';
+    const recFil  = document.getElementById('filterRecorr')?.value ?? '';
+    const respFil = document.getElementById('filterResp')?.value ?? '';
 
-    UI.populateSelect('filterResp', this.#state.responsaveis, r => r.id, r => r.apelido || r.nome, 'Todos responsáveis');
-    UI.populateSelect('ativResp',   this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`, '— Selecionar —');
-    UI.populateSelect('ativGestao', this.#state.areas,         a => a.id, a => a.nome, '— Nenhuma —');
+    UI.populateSelect('filterResp', this.#state.responsaveis, r => r.id, r => r.nome, 'Todos responsáveis');
+    UI.populateSelect('ativResp',   this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
+    UI.populateSelect('ativGestao', this.#state.areas, a => a.id, a => a.nome, '— Nenhuma —');
 
-    let list = this.#state.atividades;
-    if (search) list = list.filter(a => a.nome.toLowerCase().includes(search) || (a.descricao ?? '').toLowerCase().includes(search));
-    if (status) list = list.filter(a => a.status === status);
-    if (respId) list = list.filter(a => a.responsavel_id === respId);
+    let list = [...this.#state.atividades];
+    if (search)  list = list.filter(a => a.nome.toLowerCase().includes(search) || (a.descricao ?? '').toLowerCase().includes(search));
+    if (recFil)  list = list.filter(a => a.recorrencia === recFil);
+    if (respFil) list = list.filter(a => a.responsavel_id === respFil);
 
     const container = document.getElementById('ativList');
     if (!list.length) { container.innerHTML = UI.empty('Nenhuma atividade encontrada'); return; }
 
     container.innerHTML = list.map(a => {
+      const ok   = this.#isConcluida(a);
       const resp = this.#state.responsaveis.find(r => r.id === a.responsavel_id);
       return `
-        <div class="activity-card">
+        <div class="activity-card ${ok ? 'card-done' : ''}">
           <div class="card-top">
-            <span class="card-name">${a.nome}</span>
+            <button class="task-check ${ok ? 'checked' : ''}" onclick="app.toggleConclusao('${a.id}')" title="${ok ? 'Desmarcar' : 'Marcar como feito'}">
+              ${ok ? '✓' : ''}
+            </button>
+            <span class="card-name ${ok ? 'striked' : ''}">${a.nome}</span>
             <div class="card-actions">
-              <button class="btn-icon" onclick="app.editAtividade('${a.id}')" title="Editar">✏️</button>
-              <button class="btn-icon" onclick="app.deleteAtividade('${a.id}')" title="Excluir">🗑️</button>
+              <button class="btn-icon" onclick="app.editAtividade('${a.id}')">✏️</button>
+              <button class="btn-icon" onclick="app.deleteAtividade('${a.id}')">🗑️</button>
             </div>
           </div>
           <div class="card-meta">
-            ${UI.statusBadge(a.status)}
+            ${UI.statusBadge(ok, a.recorrencia)}
             ${UI.priorityBadge(a.prioridade)}
+            <span class="recorr-badge">${Periodo.icone(a.recorrencia)} ${Periodo.label(a.recorrencia)}</span>
             ${a.periodo ? `<span class="card-periodo">🕐 ${a.periodo}</span>` : ''}
           </div>
           ${a.descricao ? `<div class="card-desc">${a.descricao}</div>` : ''}
@@ -642,8 +584,7 @@ class App {
             <div class="resp-dot"></div>
             ${resp ? `${resp.emoji} ${resp.nome}` : '<span style="color:var(--text3)">Sem responsável</span>'}
           </div>
-        </div>
-      `;
+        </div>`;
     }).join('');
   }
 
@@ -653,104 +594,78 @@ class App {
     document.getElementById('ativDesc').value = '';
     document.getElementById('ativPeriodo').value = '';
     document.getElementById('ativRecorrencia').value = 'diaria';
-    document.getElementById('ativStatus').value = 'pendente';
     document.getElementById('modalAtivTitle').textContent = 'Nova Atividade';
     UI.setActivePriority('media');
     UI.populateSelect('ativResp',   this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
-    UI.populateSelect('ativGestao', this.#state.areas,         a => a.id, a => a.nome, '— Nenhuma —');
+    UI.populateSelect('ativGestao', this.#state.areas, a => a.id, a => a.nome, '— Nenhuma —');
     UI.openModal('modalAtividade');
   }
 
   editAtividade(id) {
-    const a = this.#state.atividades.find(x => x.id === id);
-    if (!a) return;
+    const a = this.#state.atividades.find(x => x.id === id); if (!a) return;
     document.getElementById('ativId').value = a.id;
     document.getElementById('ativNome').value = a.nome;
     document.getElementById('ativDesc').value = a.descricao ?? '';
     document.getElementById('ativPeriodo').value = a.periodo ?? '';
     document.getElementById('ativRecorrencia').value = a.recorrencia ?? 'diaria';
-    document.getElementById('ativStatus').value = a.status ?? 'pendente';
     document.getElementById('modalAtivTitle').textContent = 'Editar Atividade';
     UI.setActivePriority(a.prioridade ?? 'media');
     UI.populateSelect('ativResp',   this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
-    UI.populateSelect('ativGestao', this.#state.areas,         x => x.id, x => x.nome, '— Nenhuma —');
+    UI.populateSelect('ativGestao', this.#state.areas, x => x.id, x => x.nome, '— Nenhuma —');
     document.getElementById('ativResp').value   = a.responsavel_id ?? '';
     document.getElementById('ativGestao').value = a.area_id ?? '';
     UI.openModal('modalAtividade');
   }
 
   async salvarAtividade() {
-    const id     = document.getElementById('ativId').value;
-    const nome   = document.getElementById('ativNome').value.trim();
+    const id   = document.getElementById('ativId').value;
+    const nome = document.getElementById('ativNome').value.trim();
     if (!nome) { UI.toast('Informe o nome da atividade', 'error'); return; }
-
     const payload = {
-      nome,
-      descricao:      document.getElementById('ativDesc').value.trim(),
+      nome, descricao: document.getElementById('ativDesc').value.trim(),
       periodo:        document.getElementById('ativPeriodo').value.trim(),
       recorrencia:    document.getElementById('ativRecorrencia').value,
-      status:         document.getElementById('ativStatus').value,
       prioridade:     UI.getActivePriority(),
       responsavel_id: document.getElementById('ativResp').value || null,
-      area_id:        document.getElementById('ativGestao').value || null
+      area_id:        document.getElementById('ativGestao').value || null,
+      status: 'pendente'
     };
-
     try {
-      if (id) {
-        await this.#db.update('atividades', id, payload);
-        UI.toast('Atividade atualizada ✅');
-      } else {
-        await this.#db.insert('atividades', payload);
-        UI.toast('Atividade criada ✅');
-      }
+      if (id) { await this.#db.update('atividades', id, payload); UI.toast('Atividade atualizada ✅'); }
+      else    { await this.#db.insert('atividades', payload);      UI.toast('Atividade criada ✅'); }
       UI.closeModal('modalAtividade');
-      await this.#loadAll();
-      this.renderAtividades();
-    } catch (e) {
-      UI.toast('Erro: ' + e.message, 'error');
-    }
+      await this.#loadAll(); this.renderAtividades();
+    } catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
   async deleteAtividade(id) {
-    if (!confirm('Excluir esta atividade?')) return;
+    if (!confirm('Excluir esta atividade? Os históricos de conclusão serão removidos.')) return;
     try {
       await this.#db.remove('atividades', id);
       UI.toast('Atividade excluída');
-      await this.#loadAll();
-      this.renderAtividades();
-    } catch (e) {
-      UI.toast('Erro: ' + e.message, 'error');
-    }
+      await this.#loadAll(); this.renderAtividades();
+    } catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
-  // ── DESIGNAÇÕES ────────────────────────────
+  // ── DESIGNAÇÕES ───────────────────────────
   #renderDesignacoes() {
-    UI.populateSelect('desigAtiv', this.#state.atividades,  a => a.id, a => a.nome);
+    UI.populateSelect('desigAtiv', this.#state.atividades, a => a.id, a => `${Periodo.icone(a.recorrencia)} ${a.nome}`);
     UI.populateSelect('desigResp', this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
-
-    const container = document.getElementById('designList');
-    const list = this.#state.designacoes;
-    if (!list.length) { container.innerHTML = UI.empty('Nenhuma designação cadastrada'); return; }
-
-    container.innerHTML = list.map(d => {
+    const c = document.getElementById('designList');
+    if (!this.#state.designacoes.length) { c.innerHTML = UI.empty('Nenhuma designação cadastrada'); return; }
+    c.innerHTML = this.#state.designacoes.map(d => {
       const atv  = this.#state.atividades.find(a => a.id === d.atividade_id);
       const resp = this.#state.responsaveis.find(r => r.id === d.responsavel_id);
       return `
         <div class="activity-card">
           <div class="card-top">
-            <span class="card-name">${atv?.nome ?? '—'}</span>
-            <div class="card-actions">
-              <button class="btn-icon" onclick="app.deleteDesignacao('${d.id}')" title="Excluir">🗑️</button>
-            </div>
+            <span class="card-name">${atv ? Periodo.icone(atv.recorrencia) + ' ' + atv.nome : '—'}</span>
+            <button class="btn-icon" onclick="app.deleteDesignacao('${d.id}')">🗑️</button>
           </div>
-          <div class="card-resp">
-            <div class="resp-dot"></div>
-            ${resp ? `${resp.emoji} ${resp.nome}` : '—'}
-          </div>
-          ${d.data_inicio ? `<div class="card-periodo">📅 ${d.data_inicio} → ${d.data_fim ?? '?'}</div>` : ''}
+          <div class="card-resp"><div class="resp-dot"></div>${resp ? `${resp.emoji} ${resp.nome}` : '—'}</div>
+          ${d.data_inicio || d.data_fim ? `<div class="card-periodo">📅 ${d.data_inicio||'?'} → ${d.data_fim||'?'}</div>` : ''}
           ${d.observacao ? `<div class="card-desc">${d.observacao}</div>` : ''}
-        </div>
-      `;
+        </div>`;
     }).join('');
   }
 
@@ -758,157 +673,104 @@ class App {
     const ativId = document.getElementById('desigAtiv').value;
     const respId = document.getElementById('desigResp').value;
     if (!ativId || !respId) { UI.toast('Selecione atividade e responsável', 'error'); return; }
-
-    const payload = {
-      atividade_id:   ativId,
-      responsavel_id: respId,
-      data_inicio:    document.getElementById('desigInicio').value || null,
-      data_fim:       document.getElementById('desigFim').value    || null,
-      observacao:     document.getElementById('desigObs').value.trim()
-    };
     try {
-      await this.#db.insert('designacoes', payload);
-      UI.toast('Designação criada ✅');
-      UI.closeModal('modalDesignacao');
-      await this.#loadAll();
-      this.#renderDesignacoes();
-    } catch (e) {
-      UI.toast('Erro: ' + e.message, 'error');
-    }
+      await this.#db.insert('designacoes', {
+        atividade_id: ativId, responsavel_id: respId,
+        data_inicio: document.getElementById('desigInicio').value || null,
+        data_fim:    document.getElementById('desigFim').value    || null,
+        observacao:  document.getElementById('desigObs').value.trim()
+      });
+      UI.toast('Designação criada ✅'); UI.closeModal('modalDesignacao');
+      await this.#loadAll(); this.#renderDesignacoes();
+    } catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
   async deleteDesignacao(id) {
-    if (!confirm('Excluir esta designação?')) return;
-    try {
-      await this.#db.remove('designacoes', id);
-      UI.toast('Designação excluída');
-      await this.#loadAll();
-      this.#renderDesignacoes();
-    } catch (e) {
-      UI.toast('Erro: ' + e.message, 'error');
-    }
+    if (!confirm('Excluir?')) return;
+    try { await this.#db.remove('designacoes', id); UI.toast('Designação excluída'); await this.#loadAll(); this.#renderDesignacoes(); }
+    catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
-  // ── GESTÃO DE ÁREA ─────────────────────────
+  // ── GESTÃO DE ÁREA ────────────────────────
   #renderGestao() {
     UI.populateSelect('gestaoGestor', this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
     this.#buildMembrosCheckboxes();
-
-    const container = document.getElementById('gestaoList');
-    const list = this.#state.areas;
-    if (!list.length) { container.innerHTML = UI.empty('Nenhuma área cadastrada'); return; }
-
-    container.innerHTML = list.map(area => {
+    const c = document.getElementById('gestaoList');
+    if (!this.#state.areas.length) { c.innerHTML = UI.empty('Nenhuma área cadastrada'); return; }
+    c.innerHTML = this.#state.areas.map(area => {
       const gestor  = this.#state.responsaveis.find(r => r.id === area.gestor_id);
-      const members = this.#state.membros
-        .filter(m => m.area_id === area.id)
-        .map(m => this.#state.responsaveis.find(r => r.id === m.responsavel_id))
-        .filter(Boolean);
+      const members = this.#state.membros.filter(m => m.area_id === area.id)
+        .map(m => this.#state.responsaveis.find(r => r.id === m.responsavel_id)).filter(Boolean);
       return `
         <div class="gestao-card">
           <div class="gestao-top">
             <span class="gestao-nome">${area.nome}</span>
             <div class="card-actions">
-              <button class="btn-icon" onclick="app.editArea('${area.id}')" title="Editar">✏️</button>
-              <button class="btn-icon" onclick="app.deleteArea('${area.id}')" title="Excluir">🗑️</button>
+              <button class="btn-icon" onclick="app.editArea('${area.id}')">✏️</button>
+              <button class="btn-icon" onclick="app.deleteArea('${area.id}')">🗑️</button>
             </div>
           </div>
           ${area.descricao ? `<div class="gestao-desc">${area.descricao}</div>` : ''}
-          ${gestor ? `
-            <div class="gestao-leader">
-              <span>${gestor.emoji}</span>
-              <div><div class="leader-label">Gestor</div><div class="leader-name">${gestor.nome}</div></div>
-            </div>` : ''}
+          ${gestor ? `<div class="gestao-leader"><span>${gestor.emoji}</span><div><div class="leader-label">Gestor</div><div class="leader-name">${gestor.nome}</div></div></div>` : ''}
           <div class="gestao-team">
             ${members.map(m => `<span class="member-chip">${m.emoji} ${m.apelido || m.nome.split(' ')[0]}</span>`).join('')}
           </div>
-        </div>
-      `;
+        </div>`;
     }).join('');
   }
 
   #buildMembrosCheckboxes(selectedIds = []) {
-    const container = document.getElementById('gestaoMembros');
-    if (!container) return;
-    container.innerHTML = this.#state.responsaveis.map(r => `
+    const c = document.getElementById('gestaoMembros'); if (!c) return;
+    c.innerHTML = this.#state.responsaveis.map(r => `
       <label class="checkbox-item">
         <input type="checkbox" value="${r.id}" ${selectedIds.includes(r.id) ? 'checked' : ''}>
         <span>${r.emoji} ${r.nome}</span>
-      </label>
-    `).join('');
+      </label>`).join('');
   }
 
   editArea(id) {
-    const area = this.#state.areas.find(a => a.id === id);
-    if (!area) return;
+    const area = this.#state.areas.find(a => a.id === id); if (!area) return;
     document.getElementById('gestaoId').value   = area.id;
     document.getElementById('gestaoNome').value  = area.nome;
     document.getElementById('gestaoDesc').value  = area.descricao ?? '';
     document.getElementById('modalGestaoTitle').textContent = 'Editar Área';
     UI.populateSelect('gestaoGestor', this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
     document.getElementById('gestaoGestor').value = area.gestor_id ?? '';
-    const memberIds = this.#state.membros.filter(m => m.area_id === id).map(m => m.responsavel_id);
-    this.#buildMembrosCheckboxes(memberIds);
+    this.#buildMembrosCheckboxes(this.#state.membros.filter(m => m.area_id === id).map(m => m.responsavel_id));
     UI.openModal('modalGestao');
   }
 
   async salvarGestao() {
-    const id    = document.getElementById('gestaoId').value;
-    const nome  = document.getElementById('gestaoNome').value.trim();
-    if (!nome) { UI.toast('Informe o nome da área', 'error'); return; }
-
-    const payload = {
-      nome,
-      descricao:  document.getElementById('gestaoDesc').value.trim(),
-      gestor_id: document.getElementById('gestaoGestor').value || null
-    };
-
+    const id = document.getElementById('gestaoId').value;
+    const nome = document.getElementById('gestaoNome').value.trim();
+    if (!nome) { UI.toast('Informe o nome', 'error'); return; }
+    const payload = { nome, descricao: document.getElementById('gestaoDesc').value.trim(), gestor_id: document.getElementById('gestaoGestor').value || null };
     const checked = [...document.querySelectorAll('#gestaoMembros input:checked')].map(i => i.value);
-
     try {
       let areaId = id;
-      if (id) {
-        await this.#db.update('areas_gestao', id, payload);
-      } else {
-        const rows = await this.#db.insert('areas_gestao', payload);
-        areaId = rows[0].id;
-      }
-      // Atualizar membros: apagar e re-inserir
+      if (id) { await this.#db.update('areas_gestao', id, payload); }
+      else { const rows = await this.#db.insert('areas_gestao', payload); areaId = rows[0].id; }
       await this.#db.removeWhere('area_membros', 'area_id', areaId);
-      for (const rId of checked) {
-        await this.#db.insert('area_membros', { area_id: areaId, responsavel_id: rId });
-      }
-      UI.toast(id ? 'Área atualizada ✅' : 'Área criada ✅');
-      UI.closeModal('modalGestao');
-      await this.#loadAll();
-      this.#renderGestao();
-    } catch (e) {
-      UI.toast('Erro: ' + e.message, 'error');
-    }
+      for (const rId of checked) await this.#db.insert('area_membros', { area_id: areaId, responsavel_id: rId });
+      UI.toast(id ? 'Área atualizada ✅' : 'Área criada ✅'); UI.closeModal('modalGestao');
+      await this.#loadAll(); this.#renderGestao();
+    } catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
   async deleteArea(id) {
     if (!confirm('Excluir esta área?')) return;
-    try {
-      await this.#db.remove('areas_gestao', id);
-      UI.toast('Área excluída');
-      await this.#loadAll();
-      this.#renderGestao();
-    } catch (e) {
-      UI.toast('Erro: ' + e.message, 'error');
-    }
+    try { await this.#db.remove('areas_gestao', id); UI.toast('Área excluída'); await this.#loadAll(); this.#renderGestao(); }
+    catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
-  // ── RESPONSÁVEIS ───────────────────────────
+  // ── RESPONSÁVEIS ──────────────────────────
   #renderResponsaveis() {
     UI.buildEmojiPicker('emojiPicker');
-    const container = document.getElementById('respList');
-    const list = this.#state.responsaveis;
-    if (!list.length) { container.innerHTML = UI.empty('Nenhum responsável cadastrado'); return; }
-
-    container.innerHTML = list.map(r => {
-      const total     = this.#state.atividades.filter(a => a.responsavel_id === r.id).length;
-      const concluidas = this.#state.atividades.filter(a => a.responsavel_id === r.id && a.status === 'concluida').length;
+    const c = document.getElementById('respList');
+    if (!this.#state.responsaveis.length) { c.innerHTML = UI.empty('Nenhum responsável cadastrado'); return; }
+    c.innerHTML = this.#state.responsaveis.map(r => {
+      const total = this.#state.atividades.filter(a => a.responsavel_id === r.id).length;
+      const feitas = this.#state.atividades.filter(a => a.responsavel_id === r.id && this.#isConcluida(a)).length;
       return `
         <div class="resp-card">
           <div class="resp-emoji">${r.emoji}</div>
@@ -916,136 +778,113 @@ class App {
           ${r.apelido ? `<div class="resp-sub">${r.apelido}</div>` : ''}
           <div class="resp-stats">
             <span class="resp-stat">📋 ${total}</span>
-            <span class="resp-stat">✅ ${concluidas}</span>
+            <span class="resp-stat">✅ ${feitas}</span>
           </div>
           <div class="resp-actions">
-            <button class="btn-icon" onclick="app.deleteResponsavel('${r.id}')" title="Excluir">🗑️</button>
+            <button class="btn-icon" onclick="app.deleteResponsavel('${r.id}')">🗑️</button>
           </div>
-        </div>
-      `;
+        </div>`;
     }).join('');
   }
 
   async salvarResponsavel() {
-    const nome    = document.getElementById('respNome').value.trim();
-    const apelido = document.getElementById('respApelido').value.trim();
+    const nome = document.getElementById('respNome').value.trim();
     if (!nome) { UI.toast('Informe o nome', 'error'); return; }
-    const emoji = UI.getSelectedEmoji('emojiPicker');
     try {
-      await this.#db.insert('responsaveis', { nome, apelido, emoji });
-      UI.toast('Responsável adicionado ✅');
-      document.getElementById('respNome').value    = '';
-      document.getElementById('respApelido').value = '';
-      UI.closeModal('modalResponsavel');
-      await this.#loadAll();
-      this.#renderResponsaveis();
-    } catch (e) {
-      UI.toast('Erro: ' + e.message, 'error');
-    }
+      await this.#db.insert('responsaveis', { nome, apelido: document.getElementById('respApelido').value.trim(), emoji: UI.getSelectedEmoji('emojiPicker') });
+      UI.toast('Responsável adicionado ✅'); UI.closeModal('modalResponsavel');
+      document.getElementById('respNome').value = ''; document.getElementById('respApelido').value = '';
+      await this.#loadAll(); this.#renderResponsaveis();
+    } catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
   async deleteResponsavel(id) {
-    if (!confirm('Excluir este responsável?')) return;
-    try {
-      await this.#db.remove('responsaveis', id);
-      UI.toast('Responsável excluído');
-      await this.#loadAll();
-      this.#renderResponsaveis();
-    } catch (e) {
-      UI.toast('Erro: ' + e.message, 'error');
-    }
+    if (!confirm('Excluir?')) return;
+    try { await this.#db.remove('responsaveis', id); UI.toast('Excluído'); await this.#loadAll(); this.#renderResponsaveis(); }
+    catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
-  // ── RELATÓRIOS ─────────────────────────────
+  // ── RELATÓRIOS ────────────────────────────
   async gerarRelatorio() {
     UI.populateSelect('repResp', this.#state.responsaveis, r => r.id, r => r.nome, 'Todos responsáveis');
-    const respId  = document.getElementById('repResp').value;
-    const periodo = document.getElementById('repPeriodo').value;
-
+    const respId = document.getElementById('repResp').value;
+    const recFil = document.getElementById('repRecorr').value;
     let list = [...this.#state.atividades];
-    if (respId)  list = list.filter(a => a.responsavel_id === respId);
-    if (periodo) list = list.filter(a => (a.periodo ?? '').toLowerCase().includes(periodo.toLowerCase()));
+    if (respId) list = list.filter(a => a.responsavel_id === respId);
+    if (recFil) list = list.filter(a => a.recorrencia === recFil);
 
-    const container = document.getElementById('relatorioContent');
-    if (!list.length) { container.innerHTML = UI.empty('Nenhuma atividade para os filtros selecionados'); return; }
+    const c = document.getElementById('relatorioContent');
+    if (!list.length) { c.innerHTML = UI.empty('Nenhuma atividade encontrada'); return; }
 
-    container.innerHTML = `
-      <div class="report-table-wrap">
-        <table>
-          <thead><tr>
-            <th>Atividade</th><th>Status</th><th>Prioridade</th>
-            <th>Período</th><th>Responsável</th>
-          </tr></thead>
-          <tbody>
-            ${list.map(a => {
-              const resp = this.#state.responsaveis.find(r => r.id === a.responsavel_id);
-              return `<tr>
-                <td>${a.nome}</td>
-                <td>${UI.statusBadge(a.status)}</td>
-                <td>${UI.priorityBadge(a.prioridade)}</td>
-                <td>${a.periodo || '—'}</td>
-                <td>${resp ? `${resp.emoji} ${resp.nome}` : '—'}</td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
+    const done = list.filter(a => this.#isConcluida(a)).length;
+    const pct  = list.length ? Math.round(done / list.length * 100) : 0;
+
+    c.innerHTML = `
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card c1"><div class="stat-val">${list.length}</div><div class="stat-label">Total</div></div>
+        <div class="stat-card c2"><div class="stat-val">${done}</div><div class="stat-label">Concluídas (período atual)</div></div>
+        <div class="stat-card c3"><div class="stat-val">${pct}%</div><div class="stat-label">Taxa no período</div></div>
       </div>
-    `;
+      <div class="report-table-wrap"><table>
+        <thead><tr><th>Atividade</th><th>Recorrência</th><th>Horário/Sub</th><th>Status Atual</th><th>Prioridade</th><th>Responsável</th></tr></thead>
+        <tbody>
+          ${list.map(a => {
+            const resp = this.#state.responsaveis.find(r => r.id === a.responsavel_id);
+            const ok   = this.#isConcluida(a);
+            return `<tr>
+              <td>${a.nome}</td>
+              <td>${Periodo.icone(a.recorrencia)} ${Periodo.label(a.recorrencia)}</td>
+              <td>${a.periodo || '—'}</td>
+              <td>${UI.statusBadge(ok, a.recorrencia)}</td>
+              <td>${UI.priorityBadge(a.prioridade)}</td>
+              <td>${resp ? resp.emoji + ' ' + resp.nome : '—'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>`;
   }
 
-  // ── BINDINGS GLOBAIS (exigidos pelo HTML) ──
+  // ── BINDINGS GLOBAIS ──────────────────────
   #bindGlobals() {
-    window.app              = this;
-    window.switchTab        = tab  => this.switchTab(tab);
-    window.doLogin          = ()   => this.doLogin();
-    window.doRegister       = ()   => this.doRegister();
-    window.doLogout         = ()   => this.doLogout();
-    window.showPage         = page => this.showPage(page);
-    window.toggleSidebar    = ()   => this.toggleSidebar();
+    window.app = this;
+    window.switchTab        = t     => this.switchTab(t);
+    window.doLogin          = ()    => this.doLogin();
+    window.doRegister       = ()    => this.doRegister();
+    window.doLogout         = ()    => this.doLogout();
+    window.showPage         = page  => this.showPage(page);
+    window.toggleSidebar    = ()    => this.toggleSidebar();
     window.togglePwd        = (id, btn) => UI.togglePwd(id, btn);
-    window.setPriority      = btn  => UI.setPriority(btn);
-    window.openModal        = id   => {
-      if (id === 'modalAtividade') this.openModalAtividade();
-      else if (id === 'modalDesignacao') {
-        UI.populateSelect('desigAtiv', this.#state.atividades,  a => a.id, a => a.nome);
+    window.setPriority      = btn   => UI.setPriority(btn);
+    window.closeModal       = id    => UI.closeModal(id);
+    window.closeModalOut    = (e, id) => UI.closeModalOut(e, id);
+    window.renderAtividades = ()    => this.renderAtividades();
+    window.salvarAtividade  = ()    => this.salvarAtividade();
+    window.salvarDesignacao = ()    => this.salvarDesignacao();
+    window.salvarGestao     = ()    => this.salvarGestao();
+    window.salvarResponsavel= ()    => this.salvarResponsavel();
+    window.gerarRelatorio   = ()    => this.gerarRelatorio();
+
+    window.openModal = id => {
+      if (id === 'modalAtividade') { this.openModalAtividade(); return; }
+      if (id === 'modalDesignacao') {
+        UI.populateSelect('desigAtiv', this.#state.atividades, a => a.id, a => `${Periodo.icone(a.recorrencia)} ${a.nome}`);
         UI.populateSelect('desigResp', this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
-        document.getElementById('desigId').value = '';
-        document.getElementById('desigInicio').value = '';
-        document.getElementById('desigFim').value = '';
-        document.getElementById('desigObs').value = '';
-        UI.openModal(id);
-      } else if (id === 'modalGestao') {
-        document.getElementById('gestaoId').value   = '';
-        document.getElementById('gestaoNome').value  = '';
-        document.getElementById('gestaoDesc').value  = '';
+        ['desigId','desigInicio','desigFim','desigObs'].forEach(id => { document.getElementById(id).value = ''; });
+      }
+      if (id === 'modalGestao') {
+        ['gestaoId','gestaoNome','gestaoDesc'].forEach(i => { document.getElementById(i).value = ''; });
         document.getElementById('modalGestaoTitle').textContent = 'Nova Área de Gestão';
         UI.populateSelect('gestaoGestor', this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
         this.#buildMembrosCheckboxes();
-        UI.openModal(id);
-      } else if (id === 'modalResponsavel') {
-        document.getElementById('respNome').value    = '';
-        document.getElementById('respApelido').value = '';
-        UI.buildEmojiPicker('emojiPicker');
-        UI.openModal(id);
-      } else {
-        UI.openModal(id);
       }
+      if (id === 'modalResponsavel') {
+        ['respNome','respApelido'].forEach(i => { document.getElementById(i).value = ''; });
+        UI.buildEmojiPicker('emojiPicker');
+      }
+      UI.openModal(id);
     };
-    window.closeModal       = id   => UI.closeModal(id);
-    window.closeModalOut    = (e, id) => UI.closeModalOut(e, id);
-    window.salvarAtividade  = ()   => this.salvarAtividade();
-    window.salvarDesignacao = ()   => this.salvarDesignacao();
-    window.salvarGestao     = ()   => this.salvarGestao();
-    window.salvarResponsavel= ()   => this.salvarResponsavel();
-    window.renderAtividades = ()   => this.renderAtividades();
-    window.gerarRelatorio   = ()   => this.gerarRelatorio();
   }
 }
 
-// ─────────────────────────────────────────────
-// BOOT
-// ─────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  const app = new App();
-  app.init();
-});
+// ── BOOT ──────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => new App().init());
