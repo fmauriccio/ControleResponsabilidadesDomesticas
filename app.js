@@ -1,5 +1,5 @@
 /* ================================================================
-   CasaFlow — app.js  (v2 — Recorrência por período)
+   CasaFlow — app.js  (v3 — Dashboard por usuário + Atividades agrupadas)
    POO: Database · Auth · Periodo · UI · Charts · App
 ================================================================ */
 
@@ -9,16 +9,9 @@ const SUPABASE_URL = 'https://hyyjetmxkvuodozxwgif.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ulmNU-GR3i8cxTCTVT6lGg_CZ14LE8C';
 
 // ─────────────────────────────────────────────────────────────
-// CLASSE: Periodo — calcula datas de referência por recorrência
+// CLASSE: Periodo
 // ─────────────────────────────────────────────────────────────
 class Periodo {
-  /**
-   * Retorna a data-chave do período atual:
-   *   diaria  → hoje           ex: "2025-05-06"
-   *   semanal → segunda-feira  ex: "2025-05-05"
-   *   mensal  → dia 01 do mês  ex: "2025-05-01"
-   *   unica   → null (usa campo status da atividade)
-   */
   static getRef(recorrencia) {
     const hoje = new Date();
     if (recorrencia === 'diaria') return Periodo.iso(hoje);
@@ -35,24 +28,15 @@ class Periodo {
     return null;
   }
 
-  static iso(date) { return date.toISOString().slice(0, 10); }
-  static hoje()    { return Periodo.iso(new Date()); }
-
-  static icone(recorrencia) {
-    return { diaria: '☀️', semanal: '📅', mensal: '📆', unica: '📌' }[recorrencia] ?? '📋';
-  }
-
-  static label(recorrencia) {
-    return { diaria: 'Diária', semanal: 'Semanal', mensal: 'Mensal', unica: 'Única vez' }[recorrencia] ?? recorrencia;
-  }
-
-  static labelPeriodo(recorrencia) {
-    return { diaria: 'hoje', semanal: 'esta semana', mensal: 'este mês', unica: '' }[recorrencia] ?? '';
-  }
+  static iso(date)           { return date.toISOString().slice(0, 10); }
+  static hoje()              { return Periodo.iso(new Date()); }
+  static icone(rec)          { return { diaria:'☀️', semanal:'📅', mensal:'📆', unica:'📌' }[rec] ?? '📋'; }
+  static label(rec)          { return { diaria:'Diária', semanal:'Semanal', mensal:'Mensal', unica:'Única vez' }[rec] ?? rec; }
+  static labelPeriodo(rec)   { return { diaria:'hoje', semanal:'esta semana', mensal:'este mês', unica:'' }[rec] ?? ''; }
 }
 
 // ─────────────────────────────────────────────────────────────
-// CLASSE: Database — camada de acesso REST ao Supabase
+// CLASSE: Database
 // ─────────────────────────────────────────────────────────────
 class Database {
   constructor(url, key) {
@@ -70,15 +54,15 @@ class Database {
     return t ? JSON.parse(t) : [];
   }
 
-  select(table, qs = '')    { return this.#req(`/${table}${qs ? '?' + qs : ''}`); }
-  insert(table, data)       { return this.#req(`/${table}`, { method: 'POST', body: JSON.stringify(data) }); }
-  update(table, id, data)   { return this.#req(`/${table}?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
-  remove(table, id)         { return this.#req(`/${table}?id=eq.${id}`, { method: 'DELETE' }); }
-  removeWhere(t, f, v)      { return this.#req(`/${t}?${f}=eq.${v}`, { method: 'DELETE' }); }
+  select(table, qs = '')  { return this.#req(`/${table}${qs ? '?' + qs : ''}`); }
+  insert(table, data)     { return this.#req(`/${table}`, { method: 'POST', body: JSON.stringify(data) }); }
+  update(table, id, data) { return this.#req(`/${table}?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  remove(table, id)       { return this.#req(`/${table}?id=eq.${id}`, { method: 'DELETE' }); }
+  removeWhere(t, f, v)    { return this.#req(`/${t}?${f}=eq.${v}`, { method: 'DELETE' }); }
 }
 
 // ─────────────────────────────────────────────────────────────
-// CLASSE: Auth — autenticação com tabela usuarios
+// CLASSE: Auth
 // ─────────────────────────────────────────────────────────────
 class Auth {
   #db; #user = null;
@@ -94,7 +78,8 @@ class Auth {
 
   async login(username, senha) {
     if (!username || !senha) throw new Error('Preencha usuário e senha');
-    const rows = await this.#db.select('usuarios', `username=eq.${encodeURIComponent(username)}&senha=eq.${encodeURIComponent(senha)}`);
+    const rows = await this.#db.select('usuarios',
+      `username=eq.${encodeURIComponent(username)}&senha=eq.${encodeURIComponent(senha)}`);
     if (!rows.length) throw new Error('Usuário ou senha incorretos');
     this.#user = rows[0];
     localStorage.setItem('cf_user', JSON.stringify(rows[0]));
@@ -116,7 +101,7 @@ class Auth {
 }
 
 // ─────────────────────────────────────────────────────────────
-// CLASSE: UI — renderização, modais e utilitários estáticos
+// CLASSE: UI
 // ─────────────────────────────────────────────────────────────
 class UI {
   static EMOJIS = ['😊','😎','🦁','🐻','🦊','🐼','🌟','🔥','⚡','🎯','🏆','💪','🌈','🍀','🎨','🐙','🦋','🦄'];
@@ -128,9 +113,9 @@ class UI {
     UI._tt = setTimeout(() => el.classList.add('hidden'), 3200);
   }
 
-  static openModal(id)          { document.getElementById(id)?.classList.remove('hidden'); }
-  static closeModal(id)         { document.getElementById(id)?.classList.add('hidden'); }
-  static closeModalOut(e, id)   { if (e.target.id === id) UI.closeModal(id); }
+  static openModal(id)        { document.getElementById(id)?.classList.remove('hidden'); }
+  static closeModal(id)       { document.getElementById(id)?.classList.add('hidden'); }
+  static closeModalOut(e, id) { if (e.target.id === id) UI.closeModal(id); }
 
   static togglePwd(inputId, btn) {
     const inp = document.getElementById(inputId); if (!inp) return;
@@ -142,12 +127,13 @@ class UI {
   static populateSelect(selId, items, valFn, lblFn, ph = '— Selecionar —') {
     const sel = document.getElementById(selId); if (!sel) return;
     const cur = sel.value;
-    sel.innerHTML = `<option value="">${ph}</option>` + items.map(i => `<option value="${valFn(i)}">${lblFn(i)}</option>`).join('');
+    sel.innerHTML = `<option value="">${ph}</option>` +
+      items.map(i => `<option value="${valFn(i)}">${lblFn(i)}</option>`).join('');
     if (cur) sel.value = cur;
   }
 
-  static buildEmojiPicker(containerId, selected = '😊') {
-    const c = document.getElementById(containerId); if (!c) return;
+  static buildEmojiPicker(cId, selected = '😊') {
+    const c = document.getElementById(cId); if (!c) return;
     c.innerHTML = UI.EMOJIS.map(em =>
       `<button type="button" class="emoji-opt${em === selected ? ' selected' : ''}" data-emoji="${em}"
         onclick="this.closest('.emoji-picker').querySelectorAll('.emoji-opt').forEach(b=>b.classList.remove('selected'));this.classList.add('selected')">${em}</button>`
@@ -164,22 +150,17 @@ class UI {
   }
 
   static getActivePriority() { return document.querySelector('.prio-btn.active')?.dataset.val ?? 'media'; }
-
   static setActivePriority(val) {
     document.querySelectorAll('.prio-btn').forEach(b => b.classList.toggle('active', b.dataset.val === val));
   }
 
-  static badge(text, cls) { return `<span class="badge badge-${cls}">${text}</span>`; }
-
-  static statusBadge(concluido, recorrencia) {
-    const lbl = Periodo.labelPeriodo(recorrencia);
-    return concluido
+  static badge(text, cls)       { return `<span class="badge badge-${cls}">${text}</span>`; }
+  static priorityBadge(p)       { return UI.badge({ baixa:'Baixa', media:'Média', alta:'Alta' }[p] ?? p, p); }
+  static statusBadge(ok, rec)   {
+    const lbl = Periodo.labelPeriodo(rec);
+    return ok
       ? `<span class="badge badge-concluida">✅ Feito${lbl ? ' ' + lbl : ''}</span>`
       : `<span class="badge badge-pendente">⏳ Pendente</span>`;
-  }
-
-  static priorityBadge(p) {
-    return UI.badge({ baixa:'Baixa', media:'Média', alta:'Alta' }[p] ?? p, p);
   }
 
   static empty(msg = 'Nenhum item encontrado') {
@@ -188,16 +169,13 @@ class UI {
 
   static progressBar(done, total) {
     const pct = total > 0 ? Math.round(done / total * 100) : 0;
-    return `
-      <div class="progress-wrap">
-        <div class="progress-fill" style="width:${pct}%"></div>
-      </div>
-      <span class="progress-label">${done}/${total} • ${pct}%</span>`;
+    return `<div class="progress-wrap"><div class="progress-fill" style="width:${pct}%"></div></div>
+            <span class="progress-label">${done}/${total} • ${pct}%</span>`;
   }
 }
 
 // ─────────────────────────────────────────────────────────────
-// CLASSE: Charts — gráficos Chart.js
+// CLASSE: Charts
 // ─────────────────────────────────────────────────────────────
 class Charts {
   #inst = {};
@@ -264,11 +242,20 @@ class Charts {
 }
 
 // ─────────────────────────────────────────────────────────────
-// CLASSE: App — controlador principal
+// CLASSE: App
 // ─────────────────────────────────────────────────────────────
 class App {
   #db; #auth; #charts;
-  #state = { responsaveis:[], atividades:[], designacoes:[], areas:[], membros:[], conclusoes:[] };
+
+  #state = {
+    responsaveis: [],
+    atividades:   [],
+    designacoes:  [],
+    areas:        [],
+    membros:      [],
+    conclusoes:   [],
+    myResponsavel: null   // responsavel vinculado ao usuario logado
+  };
 
   constructor() {
     this.#db     = new Database(SUPABASE_URL, SUPABASE_KEY);
@@ -276,13 +263,17 @@ class App {
     this.#charts = new Charts();
   }
 
-  // ── INIT ──────────────────────────────────
+  // ── INIT ──────────────────────────────────────────────────
   async init() {
     document.getElementById('dateBadge').textContent =
       new Date().toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
 
-    if (this.#auth.isLoggedIn) { await this.#loadAll(); this.#showApp(); }
-    else { this.#showAuth(); }
+    if (this.#auth.isLoggedIn) {
+      await this.#loadAll();
+      this.#showApp();
+    } else {
+      this.#showAuth();
+    }
     this.#bindGlobals();
   }
 
@@ -295,13 +286,20 @@ class App {
     const u = this.#auth.currentUser;
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
-    document.getElementById('greetUser').textContent  = u?.nome?.split(' ')[0] ?? '';
+    document.getElementById('greetUser').textContent   = u?.nome?.split(' ')[0] ?? '';
     document.getElementById('sidebarUser').textContent = `👤 ${u?.username ?? ''}`;
     document.getElementById('topAvatar').textContent   =
       (u?.nome ?? 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+
+    // Badge do responsável vinculado na topbar
+    const myR = this.#state.myResponsavel;
+    const badge = document.getElementById('myRespBadge');
+    if (badge) badge.textContent = myR ? `${myR.emoji} ${myR.apelido || myR.nome.split(' ')[0]}` : '';
+
     this.showPage('dashboard');
   }
 
+  // ── CARREGAR DADOS ────────────────────────────────────────
   async #loadAll() {
     const [resp, ativ, desig, areas, membros, conclusoes] = await Promise.all([
       this.#db.select('responsaveis', 'order=nome.asc'),
@@ -311,34 +309,26 @@ class App {
       this.#db.select('area_membros'),
       this.#db.select('registros_conclusao')
     ]);
-    this.#state = {
-      responsaveis: resp       ?? [],
-      atividades:   ativ       ?? [],
-      designacoes:  desig      ?? [],
-      areas:        areas      ?? [],
-      membros:      membros    ?? [],
-      conclusoes:   conclusoes ?? []
-    };
+    this.#state.responsaveis = resp       ?? [];
+    this.#state.atividades   = ativ       ?? [];
+    this.#state.designacoes  = desig      ?? [];
+    this.#state.areas        = areas      ?? [];
+    this.#state.membros      = membros    ?? [];
+    this.#state.conclusoes   = conclusoes ?? [];
+
+    // Encontra o responsavel vinculado ao usuario logado
+    this.#state.myResponsavel = this.#state.responsaveis.find(
+      r => r.usuario_id === this.#auth.currentUser?.id
+    ) ?? null;
   }
 
-  // ── LÓGICA DE RECORRÊNCIA ─────────────────
-  /**
-   * Verifica se a atividade está concluída no PERÍODO ATUAL.
-   * - Recorrentes: checa tabela registros_conclusao (se há registro para o ref atual)
-   * - Única: usa campo status da atividade
-   */
+  // ── LÓGICA DE RECORRÊNCIA ─────────────────────────────────
   #isConcluida(atv) {
     if (atv.recorrencia === 'unica') return atv.status === 'concluida';
     const ref = Periodo.getRef(atv.recorrencia);
     return this.#state.conclusoes.some(c => c.atividade_id === atv.id && c.periodo_ref === ref);
   }
 
-  /**
-   * Alterna conclusão:
-   * - Recorrentes: insere/remove registro em registros_conclusao
-   *   → No próximo período (dia/semana/mês), a atividade voltará como pendente automaticamente
-   * - Única: atualiza status na tabela atividades
-   */
   async toggleConclusao(ativId) {
     const atv = this.#state.atividades.find(a => a.id === ativId);
     if (!atv) return;
@@ -362,18 +352,20 @@ class App {
       }
     }
 
-    // Re-renderizar página ativa sem recarregar do banco
     const pageId = document.querySelector('.page:not(.hidden)')?.id?.replace('page-', '');
     if (pageId) this.#renderPage(pageId, false);
   }
 
-  // ── NAVEGAÇÃO ─────────────────────────────
+  // ── NAVEGAÇÃO ─────────────────────────────────────────────
   showPage(page) {
     document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById(`page-${page}`)?.classList.remove('hidden');
     document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
-    const titles = { dashboard:'Dashboard', atividades:'Atividades', designacoes:'Designações', gestao:'Gestão de Área', responsaveis:'Responsáveis', relatorios:'Relatórios' };
+    const titles = {
+      dashboard:'Dashboard', atividades:'Atividades', designacoes:'Designações',
+      gestao:'Gestão de Área', responsaveis:'Responsáveis', relatorios:'Relatórios'
+    };
     document.getElementById('pageTitle').textContent = titles[page] ?? page;
     if (window.innerWidth < 768) this.toggleSidebar(false);
     this.#renderPage(page, true);
@@ -394,19 +386,19 @@ class App {
     const sb = document.getElementById('sidebar'); if (!sb) return;
     const open = force !== undefined ? force : !sb.classList.contains('open');
     sb.classList.toggle('open', open);
-    let overlay = document.getElementById('sidebarOverlay');
+    let ov = document.getElementById('sidebarOverlay');
     if (open && window.innerWidth < 768) {
-      if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'sidebarOverlay'; overlay.className = 'sidebar-overlay';
-        overlay.onclick = () => this.toggleSidebar(false);
-        document.body.appendChild(overlay);
+      if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'sidebarOverlay'; ov.className = 'sidebar-overlay';
+        ov.onclick = () => this.toggleSidebar(false);
+        document.body.appendChild(ov);
       }
-      overlay.classList.add('visible');
-    } else if (overlay) overlay.classList.remove('visible');
+      ov.classList.add('visible');
+    } else if (ov) ov.classList.remove('visible');
   }
 
-  // ── AUTH ──────────────────────────────────
+  // ── AUTH ──────────────────────────────────────────────────
   switchTab(tab) {
     document.getElementById('loginForm').classList.toggle('hidden', tab !== 'login');
     document.getElementById('registerForm').classList.toggle('hidden', tab !== 'register');
@@ -417,31 +409,62 @@ class App {
   async doLogin() {
     const errEl = document.getElementById('loginError'); errEl.textContent = '';
     try {
-      await this.#auth.login(document.getElementById('loginUser').value.trim(), document.getElementById('loginPass').value);
-      await this.#loadAll(); this.#showApp();
+      await this.#auth.login(
+        document.getElementById('loginUser').value.trim(),
+        document.getElementById('loginPass').value
+      );
+      await this.#loadAll();
+      this.#showApp();
     } catch (e) { errEl.textContent = e.message; }
   }
 
   async doRegister() {
     const errEl = document.getElementById('regError'); errEl.textContent = '';
-    const s1 = document.getElementById('regPass').value, s2 = document.getElementById('regPass2').value;
-    if (s1 !== s2) { errEl.textContent = 'As senhas não coincidem'; return; }
+    const nome   = document.getElementById('regName').value.trim();
+    const user   = document.getElementById('regUser').value.trim();
+    const senha  = document.getElementById('regPass').value;
+    const senha2 = document.getElementById('regPass2').value;
+    if (senha !== senha2) { errEl.textContent = 'As senhas não coincidem'; return; }
     try {
-      await this.#auth.register(document.getElementById('regName').value.trim(), document.getElementById('regUser').value.trim(), s1);
-      await this.#loadAll(); this.#showApp();
+      const newUser = await this.#auth.register(nome, user, senha);
+
+      // Cria automaticamente um responsável vinculado à conta
+      await this.#db.insert('responsaveis', {
+        nome:       newUser.nome,
+        apelido:    newUser.username,
+        emoji:      '😊',
+        usuario_id: newUser.id
+      });
+
+      await this.#loadAll();
+      this.#showApp();
     } catch (e) { errEl.textContent = e.message; }
   }
 
   doLogout() { this.#auth.logout(); this.#showAuth(); }
 
-  // ── DASHBOARD ─────────────────────────────
+  // ── DASHBOARD (apenas atividades do usuário logado) ───────
   #renderDashboard() {
-    const { atividades, responsaveis, areas } = this.#state;
+    const myR = this.#state.myResponsavel;
 
-    const diarias  = atividades.filter(a => a.recorrencia === 'diaria');
-    const semanais = atividades.filter(a => a.recorrencia === 'semanal');
-    const mensais  = atividades.filter(a => a.recorrencia === 'mensal');
-    const unicas   = atividades.filter(a => a.recorrencia === 'unica');
+    // Sem responsável vinculado → mostrar aviso
+    if (!myR) {
+      document.getElementById('statsGrid').innerHTML = '';
+      ['sectionDiarias','sectionSemanais','sectionMensais','sectionUnicas'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.innerHTML = '';
+      });
+      document.getElementById('dashAlert').classList.remove('hidden');
+      return;
+    }
+
+    document.getElementById('dashAlert').classList.add('hidden');
+
+    // Filtrar apenas atividades do responsável logado
+    const minhas    = this.#state.atividades.filter(a => a.responsavel_id === myR.id);
+    const diarias   = minhas.filter(a => a.recorrencia === 'diaria');
+    const semanais  = minhas.filter(a => a.recorrencia === 'semanal');
+    const mensais   = minhas.filter(a => a.recorrencia === 'mensal');
+    const unicas    = minhas.filter(a => a.recorrencia === 'unica');
 
     const dDone = diarias.filter(a  => this.#isConcluida(a)).length;
     const sDone = semanais.filter(a => this.#isConcluida(a)).length;
@@ -453,39 +476,45 @@ class App {
       <div class="stat-card c1"><div class="stat-icon">☀️</div>
         <div class="stat-val">${dDone}/${diarias.length}</div><div class="stat-label">Concluídas hoje</div></div>
       <div class="stat-card c2"><div class="stat-icon">📅</div>
-        <div class="stat-val">${sDone}/${semanais.length}</div><div class="stat-label">Feitas esta semana</div></div>
+        <div class="stat-val">${sDone}/${semanais.length}</div><div class="stat-label">Esta semana</div></div>
       <div class="stat-card c3"><div class="stat-icon">📆</div>
-        <div class="stat-val">${mDone}/${mensais.length}</div><div class="stat-label">Feitas este mês</div></div>
+        <div class="stat-val">${mDone}/${mensais.length}</div><div class="stat-label">Este mês</div></div>
       <div class="stat-card c4"><div class="stat-icon">📌</div>
-        <div class="stat-val">${uDone}/${unicas.length}</div><div class="stat-label">Únicas concluídas</div></div>
+        <div class="stat-val">${uDone}/${unicas.length}</div><div class="stat-label">Únicas</div></div>
     `;
 
-    // Seções de tarefas
-    this.#renderTaskSection('sectionDiarias',  diarias,  '☀️ Diárias — Hoje',          'diaria');
-    this.#renderTaskSection('sectionSemanais', semanais, '📅 Semanais — Esta Semana',   'semanal');
-    this.#renderTaskSection('sectionMensais',  mensais,  '📆 Mensais — Este Mês',       'mensal');
-    this.#renderTaskSection('sectionUnicas',   unicas,   '📌 Únicas / Avulsas',         'unica');
+    // Seções de tarefas — apenas as minhas
+    this.#renderTaskSection('sectionDiarias',  diarias,  '☀️ Diárias — Hoje',        'diaria');
+    this.#renderTaskSection('sectionSemanais', semanais, '📅 Semanais — Esta Semana', 'semanal');
+    this.#renderTaskSection('sectionMensais',  mensais,  '📆 Mensais — Este Mês',     'mensal');
+    this.#renderTaskSection('sectionUnicas',   unicas,   '📌 Únicas / Avulsas',       'unica');
 
-    // Gráficos
-    this.#charts.doughnut('chartDoughnut', ['Diárias','Semanais','Mensais','Únicas'],
-      [diarias.length, semanais.length, mensais.length, unicas.length]);
-
-    this.#charts.bar('chartBar', ['Diárias','Semanais','Mensais','Únicas'],
-      [dDone, sDone, mDone, uDone], 'Concluídas no período');
+    // Gráficos (baseados nas atividades do usuário)
+    this.#charts.doughnut('chartDoughnut',
+      ['Diárias','Semanais','Mensais','Únicas'],
+      [diarias.length, semanais.length, mensais.length, unicas.length]
+    );
+    this.#charts.bar('chartBar',
+      ['Diárias','Semanais','Mensais','Únicas'],
+      [dDone, sDone, mDone, uDone], 'Concluídas no período'
+    );
 
     const days = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(); d.setDate(d.getDate() - (6 - i));
-      return Periodo.iso(d);
+      const d = new Date(); d.setDate(d.getDate() - (6 - i)); return Periodo.iso(d);
     });
+    // Apenas conclusões das minhas atividades
+    const myIds = new Set(minhas.map(a => a.id));
     this.#charts.line('chartPeriod',
       days.map(d => d.slice(5)),
-      days.map(d => this.#state.conclusoes.filter(c => c.periodo_ref === d).length),
-      'Conclusões'
+      days.map(d => this.#state.conclusoes.filter(c => myIds.has(c.atividade_id) && c.periodo_ref === d).length),
+      'Minhas conclusões'
     );
 
     this.#charts.pie('chartArea',
-      areas.length ? areas.map(a => a.nome) : ['Sem área'],
-      areas.length ? areas.map(a => atividades.filter(at => at.area_id === a.id).length) : [1]
+      this.#state.areas.length ? this.#state.areas.map(a => a.nome) : ['Sem área'],
+      this.#state.areas.length
+        ? this.#state.areas.map(a => minhas.filter(at => at.area_id === a.id).length)
+        : [1]
     );
   }
 
@@ -503,25 +532,16 @@ class App {
 
     const done  = atividades.filter(a => this.#isConcluida(a)).length;
     const total = atividades.length;
-
-    // Ordenar: pendentes primeiro
-    const sorted = [...atividades].sort((a, b) => {
-      const da = this.#isConcluida(a) ? 1 : 0;
-      const db = this.#isConcluida(b) ? 1 : 0;
-      return da - db;
-    });
+    const sorted = [...atividades].sort((a, b) => (this.#isConcluida(a) ? 1 : 0) - (this.#isConcluida(b) ? 1 : 0));
 
     el.innerHTML = `
       <div class="task-section-header">
         <span class="task-section-title">${titulo}</span>
-        <div class="task-progress">
-          ${UI.progressBar(done, total)}
-        </div>
+        <div class="task-progress">${UI.progressBar(done, total)}</div>
       </div>
       <div class="task-list">
         ${sorted.map(a => {
-          const ok   = this.#isConcluida(a);
-          const resp = this.#state.responsaveis.find(r => r.id === a.responsavel_id);
+          const ok = this.#isConcluida(a);
           return `
             <div class="task-item ${ok ? 'task-done' : ''}">
               <button class="task-check ${ok ? 'checked' : ''}" onclick="app.toggleConclusao('${a.id}')" title="${ok ? 'Desmarcar' : 'Marcar como feito'}">
@@ -532,7 +552,6 @@ class App {
                 ${a.periodo ? `<div class="task-sub">🕐 ${a.periodo}</div>` : ''}
               </div>
               <div class="task-meta">
-                ${resp ? `<span class="task-resp">${resp.emoji} ${resp.apelido || resp.nome.split(' ')[0]}</span>` : ''}
                 ${UI.priorityBadge(a.prioridade)}
               </div>
             </div>`;
@@ -540,52 +559,97 @@ class App {
       </div>`;
   }
 
-  // ── ATIVIDADES ────────────────────────────
+  // ── ATIVIDADES (todas, agrupadas por responsável) ─────────
   renderAtividades() {
-    const search  = (document.getElementById('searchAtiv')?.value ?? '').toLowerCase();
-    const recFil  = document.getElementById('filterRecorr')?.value ?? '';
-    const respFil = document.getElementById('filterResp')?.value ?? '';
+    const search = (document.getElementById('searchAtiv')?.value ?? '').toLowerCase();
+    const recFil = document.getElementById('filterRecorr')?.value ?? '';
 
-    UI.populateSelect('filterResp', this.#state.responsaveis, r => r.id, r => r.nome, 'Todos responsáveis');
     UI.populateSelect('ativResp',   this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
     UI.populateSelect('ativGestao', this.#state.areas, a => a.id, a => a.nome, '— Nenhuma —');
 
     let list = [...this.#state.atividades];
-    if (search)  list = list.filter(a => a.nome.toLowerCase().includes(search) || (a.descricao ?? '').toLowerCase().includes(search));
-    if (recFil)  list = list.filter(a => a.recorrencia === recFil);
-    if (respFil) list = list.filter(a => a.responsavel_id === respFil);
+    if (search) list = list.filter(a =>
+      a.nome.toLowerCase().includes(search) || (a.descricao ?? '').toLowerCase().includes(search));
+    if (recFil) list = list.filter(a => a.recorrencia === recFil);
 
     const container = document.getElementById('ativList');
     if (!list.length) { container.innerHTML = UI.empty('Nenhuma atividade encontrada'); return; }
 
-    container.innerHTML = list.map(a => {
-      const ok   = this.#isConcluida(a);
-      const resp = this.#state.responsaveis.find(r => r.id === a.responsavel_id);
-      return `
-        <div class="activity-card ${ok ? 'card-done' : ''}">
-          <div class="card-top">
-            <button class="task-check ${ok ? 'checked' : ''}" onclick="app.toggleConclusao('${a.id}')" title="${ok ? 'Desmarcar' : 'Marcar como feito'}">
-              ${ok ? '✓' : ''}
-            </button>
-            <span class="card-name ${ok ? 'striked' : ''}">${a.nome}</span>
-            <div class="card-actions">
-              <button class="btn-icon" onclick="app.editAtividade('${a.id}')">✏️</button>
-              <button class="btn-icon" onclick="app.deleteAtividade('${a.id}')">🗑️</button>
-            </div>
-          </div>
-          <div class="card-meta">
-            ${UI.statusBadge(ok, a.recorrencia)}
-            ${UI.priorityBadge(a.prioridade)}
-            <span class="recorr-badge">${Periodo.icone(a.recorrencia)} ${Periodo.label(a.recorrencia)}</span>
-            ${a.periodo ? `<span class="card-periodo">🕐 ${a.periodo}</span>` : ''}
-          </div>
-          ${a.descricao ? `<div class="card-desc">${a.descricao}</div>` : ''}
-          <div class="card-resp">
-            <div class="resp-dot"></div>
-            ${resp ? `${resp.emoji} ${resp.nome}` : '<span style="color:var(--text3)">Sem responsável</span>'}
-          </div>
-        </div>`;
+    // Agrupar por responsavel_id
+    const grupos = new Map(); // responsavel_id → { responsavel, atividades[] }
+
+    list.forEach(a => {
+      const key  = a.responsavel_id ?? '__none__';
+      const resp = this.#state.responsaveis.find(r => r.id === a.responsavel_id) ?? null;
+      if (!grupos.has(key)) grupos.set(key, { resp, atividades: [] });
+      grupos.get(key).atividades.push(a);
+    });
+
+    // Ordenar: grupos com responsavel primeiro, sem responsavel por último
+    const entries = [...grupos.entries()].sort(([ka], [kb]) => {
+      if (ka === '__none__') return 1;
+      if (kb === '__none__') return -1;
+      const na = grupos.get(ka).resp?.nome ?? '';
+      const nb = grupos.get(kb).resp?.nome ?? '';
+      return na.localeCompare(nb);
+    });
+
+    container.innerHTML = entries.map(([key, { resp, atividades }]) => {
+      const isMe = resp && this.#state.myResponsavel?.id === resp.id;
+      const doneCount = atividades.filter(a => this.#isConcluida(a)).length;
+
+      const header = resp
+        ? `<div class="resp-group-header">
+             <div class="resp-group-left">
+               <span class="resp-group-emoji">${resp.emoji}</span>
+               <div>
+                 <div class="resp-group-name">
+                   ${resp.nome}
+                   ${isMe ? '<span class="you-badge">Você</span>' : ''}
+                 </div>
+                 <div class="resp-group-sub">${resp.apelido ? '@' + resp.apelido + ' · ' : ''}${atividades.length} atividade${atividades.length !== 1 ? 's' : ''} · ${doneCount} concluída${doneCount !== 1 ? 's' : ''}</div>
+               </div>
+             </div>
+             <div class="resp-group-progress">${UI.progressBar(doneCount, atividades.length)}</div>
+           </div>`
+        : `<div class="resp-group-header resp-group-none">
+             <div class="resp-group-left">
+               <span class="resp-group-emoji">👤</span>
+               <div>
+                 <div class="resp-group-name">Sem responsável</div>
+                 <div class="resp-group-sub">${atividades.length} atividade${atividades.length !== 1 ? 's' : ''}</div>
+               </div>
+             </div>
+           </div>`;
+
+      const cards = atividades.map(a => this.#buildActivityCard(a)).join('');
+
+      return `<div class="resp-group ${isMe ? 'resp-group-me' : ''}">${header}<div class="card-grid">${cards}</div></div>`;
     }).join('');
+  }
+
+  #buildActivityCard(a) {
+    const ok   = this.#isConcluida(a);
+    return `
+      <div class="activity-card ${ok ? 'card-done' : ''}">
+        <div class="card-top">
+          <button class="task-check ${ok ? 'checked' : ''}" onclick="app.toggleConclusao('${a.id}')" title="${ok ? 'Desmarcar' : 'Marcar como feito'}">
+            ${ok ? '✓' : ''}
+          </button>
+          <span class="card-name ${ok ? 'striked' : ''}">${a.nome}</span>
+          <div class="card-actions">
+            <button class="btn-icon" onclick="app.editAtividade('${a.id}')" title="Editar">✏️</button>
+            <button class="btn-icon" onclick="app.deleteAtividade('${a.id}')" title="Excluir">🗑️</button>
+          </div>
+        </div>
+        <div class="card-meta">
+          ${UI.statusBadge(ok, a.recorrencia)}
+          ${UI.priorityBadge(a.prioridade)}
+          <span class="recorr-badge">${Periodo.icone(a.recorrencia)} ${Periodo.label(a.recorrencia)}</span>
+          ${a.periodo ? `<span class="card-periodo">🕐 ${a.periodo}</span>` : ''}
+        </div>
+        ${a.descricao ? `<div class="card-desc">${a.descricao}</div>` : ''}
+      </div>`;
   }
 
   openModalAtividade() {
@@ -598,6 +662,10 @@ class App {
     UI.setActivePriority('media');
     UI.populateSelect('ativResp',   this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
     UI.populateSelect('ativGestao', this.#state.areas, a => a.id, a => a.nome, '— Nenhuma —');
+    // Pré-selecionar o responsável do usuário logado
+    if (this.#state.myResponsavel) {
+      document.getElementById('ativResp').value = this.#state.myResponsavel.id;
+    }
     UI.openModal('modalAtividade');
   }
 
@@ -622,7 +690,8 @@ class App {
     const nome = document.getElementById('ativNome').value.trim();
     if (!nome) { UI.toast('Informe o nome da atividade', 'error'); return; }
     const payload = {
-      nome, descricao: document.getElementById('ativDesc').value.trim(),
+      nome,
+      descricao:      document.getElementById('ativDesc').value.trim(),
       periodo:        document.getElementById('ativPeriodo').value.trim(),
       recorrencia:    document.getElementById('ativRecorrencia').value,
       prioridade:     UI.getActivePriority(),
@@ -634,22 +703,24 @@ class App {
       if (id) { await this.#db.update('atividades', id, payload); UI.toast('Atividade atualizada ✅'); }
       else    { await this.#db.insert('atividades', payload);      UI.toast('Atividade criada ✅'); }
       UI.closeModal('modalAtividade');
-      await this.#loadAll(); this.renderAtividades();
+      await this.#loadAll();
+      this.renderAtividades();
     } catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
   async deleteAtividade(id) {
-    if (!confirm('Excluir esta atividade? Os históricos de conclusão serão removidos.')) return;
+    if (!confirm('Excluir esta atividade?')) return;
     try {
       await this.#db.remove('atividades', id);
       UI.toast('Atividade excluída');
-      await this.#loadAll(); this.renderAtividades();
+      await this.#loadAll();
+      this.renderAtividades();
     } catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
-  // ── DESIGNAÇÕES ───────────────────────────
+  // ── DESIGNAÇÕES ───────────────────────────────────────────
   #renderDesignacoes() {
-    UI.populateSelect('desigAtiv', this.#state.atividades, a => a.id, a => `${Periodo.icone(a.recorrencia)} ${a.nome}`);
+    UI.populateSelect('desigAtiv', this.#state.atividades,   a => a.id, a => `${Periodo.icone(a.recorrencia)} ${a.nome}`);
     UI.populateSelect('desigResp', this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
     const c = document.getElementById('designList');
     if (!this.#state.designacoes.length) { c.innerHTML = UI.empty('Nenhuma designação cadastrada'); return; }
@@ -687,11 +758,13 @@ class App {
 
   async deleteDesignacao(id) {
     if (!confirm('Excluir?')) return;
-    try { await this.#db.remove('designacoes', id); UI.toast('Designação excluída'); await this.#loadAll(); this.#renderDesignacoes(); }
-    catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
+    try {
+      await this.#db.remove('designacoes', id);
+      UI.toast('Designação excluída'); await this.#loadAll(); this.#renderDesignacoes();
+    } catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
-  // ── GESTÃO DE ÁREA ────────────────────────
+  // ── GESTÃO DE ÁREA ────────────────────────────────────────
   #renderGestao() {
     UI.populateSelect('gestaoGestor', this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
     this.#buildMembrosCheckboxes();
@@ -712,9 +785,7 @@ class App {
           </div>
           ${area.descricao ? `<div class="gestao-desc">${area.descricao}</div>` : ''}
           ${gestor ? `<div class="gestao-leader"><span>${gestor.emoji}</span><div><div class="leader-label">Gestor</div><div class="leader-name">${gestor.nome}</div></div></div>` : ''}
-          <div class="gestao-team">
-            ${members.map(m => `<span class="member-chip">${m.emoji} ${m.apelido || m.nome.split(' ')[0]}</span>`).join('')}
-          </div>
+          <div class="gestao-team">${members.map(m => `<span class="member-chip">${m.emoji} ${m.apelido || m.nome.split(' ')[0]}</span>`).join('')}</div>
         </div>`;
     }).join('');
   }
@@ -758,55 +829,94 @@ class App {
   }
 
   async deleteArea(id) {
-    if (!confirm('Excluir esta área?')) return;
-    try { await this.#db.remove('areas_gestao', id); UI.toast('Área excluída'); await this.#loadAll(); this.#renderGestao(); }
-    catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
+    if (!confirm('Excluir?')) return;
+    try {
+      await this.#db.remove('areas_gestao', id);
+      UI.toast('Área excluída'); await this.#loadAll(); this.#renderGestao();
+    } catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
-  // ── RESPONSÁVEIS ──────────────────────────
+  // ── RESPONSÁVEIS ──────────────────────────────────────────
   #renderResponsaveis() {
     UI.buildEmojiPicker('emojiPicker');
-    const c = document.getElementById('respList');
+    const c    = document.getElementById('respList');
+    const myR  = this.#state.myResponsavel;
+    const uid  = this.#auth.currentUser?.id;
+
     if (!this.#state.responsaveis.length) { c.innerHTML = UI.empty('Nenhum responsável cadastrado'); return; }
+
     c.innerHTML = this.#state.responsaveis.map(r => {
-      const total = this.#state.atividades.filter(a => a.responsavel_id === r.id).length;
+      const total  = this.#state.atividades.filter(a => a.responsavel_id === r.id).length;
       const feitas = this.#state.atividades.filter(a => a.responsavel_id === r.id && this.#isConcluida(a)).length;
+      const isMe   = myR?.id === r.id;
+      const isLinked = !!r.usuario_id;
+
       return `
-        <div class="resp-card">
+        <div class="resp-card ${isMe ? 'resp-card-me' : ''}">
+          ${isMe ? '<div class="resp-me-badge">Você</div>' : ''}
           <div class="resp-emoji">${r.emoji}</div>
           <div class="resp-name">${r.nome}</div>
-          ${r.apelido ? `<div class="resp-sub">${r.apelido}</div>` : ''}
+          ${r.apelido ? `<div class="resp-sub">@${r.apelido}</div>` : ''}
           <div class="resp-stats">
             <span class="resp-stat">📋 ${total}</span>
             <span class="resp-stat">✅ ${feitas}</span>
           </div>
+          ${isLinked && !isMe ? '<div class="resp-linked-badge">🔗 Vinculado</div>' : ''}
           <div class="resp-actions">
-            <button class="btn-icon" onclick="app.deleteResponsavel('${r.id}')">🗑️</button>
+            ${!isLinked ? `<button class="btn-secondary resp-link-btn" onclick="app.vincularResponsavel('${r.id}')" title="Vincular à minha conta">🔗 Vincular</button>` : ''}
+            ${isMe ? '' : `<button class="btn-icon" onclick="app.deleteResponsavel('${r.id}')">🗑️</button>`}
           </div>
         </div>`;
     }).join('');
+  }
+
+  // Vincula um responsável existente à conta logada
+  async vincularResponsavel(respId) {
+    const uid = this.#auth.currentUser?.id;
+    if (!uid) return;
+    if (this.#state.myResponsavel) {
+      if (!confirm('Você já tem um responsável vinculado. Deseja trocar o vínculo?')) return;
+      // Desvincula o antigo
+      await this.#db.update('responsaveis', this.#state.myResponsavel.id, { usuario_id: null });
+    }
+    try {
+      await this.#db.update('responsaveis', respId, { usuario_id: uid });
+      UI.toast('✅ Responsável vinculado à sua conta!');
+      await this.#loadAll();
+      this.#renderResponsaveis();
+      // Atualizar badge no topbar
+      const myR = this.#state.myResponsavel;
+      const badge = document.getElementById('myRespBadge');
+      if (badge && myR) badge.textContent = `${myR.emoji} ${myR.apelido || myR.nome.split(' ')[0]}`;
+    } catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
   async salvarResponsavel() {
     const nome = document.getElementById('respNome').value.trim();
     if (!nome) { UI.toast('Informe o nome', 'error'); return; }
     try {
-      await this.#db.insert('responsaveis', { nome, apelido: document.getElementById('respApelido').value.trim(), emoji: UI.getSelectedEmoji('emojiPicker') });
+      await this.#db.insert('responsaveis', {
+        nome, apelido: document.getElementById('respApelido').value.trim(),
+        emoji: UI.getSelectedEmoji('emojiPicker')
+      });
       UI.toast('Responsável adicionado ✅'); UI.closeModal('modalResponsavel');
-      document.getElementById('respNome').value = ''; document.getElementById('respApelido').value = '';
+      document.getElementById('respNome').value = '';
+      document.getElementById('respApelido').value = '';
       await this.#loadAll(); this.#renderResponsaveis();
     } catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
   async deleteResponsavel(id) {
-    if (!confirm('Excluir?')) return;
-    try { await this.#db.remove('responsaveis', id); UI.toast('Excluído'); await this.#loadAll(); this.#renderResponsaveis(); }
-    catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
+    if (!confirm('Excluir este responsável?')) return;
+    try {
+      await this.#db.remove('responsaveis', id);
+      UI.toast('Excluído'); await this.#loadAll(); this.#renderResponsaveis();
+    } catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
-  // ── RELATÓRIOS ────────────────────────────
+  // ── RELATÓRIOS ────────────────────────────────────────────
   async gerarRelatorio() {
-    UI.populateSelect('repResp', this.#state.responsaveis, r => r.id, r => r.nome, 'Todos responsáveis');
+    UI.populateSelect('repResp', this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`, 'Todos responsáveis');
     const respId = document.getElementById('repResp').value;
     const recFil = document.getElementById('repRecorr').value;
     let list = [...this.#state.atividades];
@@ -844,7 +954,7 @@ class App {
       </table></div>`;
   }
 
-  // ── BINDINGS GLOBAIS ──────────────────────
+  // ── BINDINGS GLOBAIS ──────────────────────────────────────
   #bindGlobals() {
     window.app = this;
     window.switchTab        = t     => this.switchTab(t);
@@ -869,7 +979,7 @@ class App {
       if (id === 'modalDesignacao') {
         UI.populateSelect('desigAtiv', this.#state.atividades, a => a.id, a => `${Periodo.icone(a.recorrencia)} ${a.nome}`);
         UI.populateSelect('desigResp', this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
-        ['desigId','desigInicio','desigFim','desigObs'].forEach(id => { document.getElementById(id).value = ''; });
+        ['desigId','desigInicio','desigFim','desigObs'].forEach(i => { document.getElementById(i).value = ''; });
       }
       if (id === 'modalGestao') {
         ['gestaoId','gestaoNome','gestaoDesc'].forEach(i => { document.getElementById(i).value = ''; });
@@ -886,5 +996,5 @@ class App {
   }
 }
 
-// ── BOOT ──────────────────────────────────────
+// ── BOOT ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => new App().init());
