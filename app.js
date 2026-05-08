@@ -250,7 +250,6 @@ class App {
   #state = {
     responsaveis: [],
     atividades:   [],
-    designacoes:  [],
     areas:        [],
     membros:      [],
     conclusoes:   [],
@@ -301,17 +300,15 @@ class App {
 
   // ── CARREGAR DADOS ────────────────────────────────────────
   async #loadAll() {
-    const [resp, ativ, desig, areas, membros, conclusoes] = await Promise.all([
+    const [resp, ativ, areas, membros, conclusoes] = await Promise.all([
       this.#db.select('responsaveis', 'order=nome.asc'),
       this.#db.select('atividades',   'order=created_at.desc'),
-      this.#db.select('designacoes',  'order=created_at.desc'),
       this.#db.select('areas_gestao', 'order=nome.asc'),
       this.#db.select('area_membros'),
       this.#db.select('registros_conclusao')
     ]);
     this.#state.responsaveis = resp       ?? [];
     this.#state.atividades   = ativ       ?? [];
-    this.#state.designacoes  = desig      ?? [];
     this.#state.areas        = areas      ?? [];
     this.#state.membros      = membros    ?? [];
     this.#state.conclusoes   = conclusoes ?? [];
@@ -363,7 +360,7 @@ class App {
     document.getElementById(`page-${page}`)?.classList.remove('hidden');
     document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
     const titles = {
-      dashboard:'Dashboard', atividades:'Atividades', designacoes:'Designações',
+      dashboard:'Dashboard', atividades:'Atividades',
       gestao:'Gestão de Área', responsaveis:'Responsáveis', relatorios:'Relatórios'
     };
     document.getElementById('pageTitle').textContent = titles[page] ?? page;
@@ -376,7 +373,6 @@ class App {
     switch (page) {
       case 'dashboard':    this.#renderDashboard();   break;
       case 'atividades':   this.renderAtividades();    break;
-      case 'designacoes':  this.#renderDesignacoes();  break;
       case 'gestao':       this.#renderGestao();       break;
       case 'responsaveis': this.#renderResponsaveis(); break;
     }
@@ -718,52 +714,6 @@ class App {
     } catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
   }
 
-  // ── DESIGNAÇÕES ───────────────────────────────────────────
-  #renderDesignacoes() {
-    UI.populateSelect('desigAtiv', this.#state.atividades,   a => a.id, a => `${Periodo.icone(a.recorrencia)} ${a.nome}`);
-    UI.populateSelect('desigResp', this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
-    const c = document.getElementById('designList');
-    if (!this.#state.designacoes.length) { c.innerHTML = UI.empty('Nenhuma designação cadastrada'); return; }
-    c.innerHTML = this.#state.designacoes.map(d => {
-      const atv  = this.#state.atividades.find(a => a.id === d.atividade_id);
-      const resp = this.#state.responsaveis.find(r => r.id === d.responsavel_id);
-      return `
-        <div class="activity-card">
-          <div class="card-top">
-            <span class="card-name">${atv ? Periodo.icone(atv.recorrencia) + ' ' + atv.nome : '—'}</span>
-            <button class="btn-icon" onclick="app.deleteDesignacao('${d.id}')">🗑️</button>
-          </div>
-          <div class="card-resp"><div class="resp-dot"></div>${resp ? `${resp.emoji} ${resp.nome}` : '—'}</div>
-          ${d.data_inicio || d.data_fim ? `<div class="card-periodo">📅 ${d.data_inicio||'?'} → ${d.data_fim||'?'}</div>` : ''}
-          ${d.observacao ? `<div class="card-desc">${d.observacao}</div>` : ''}
-        </div>`;
-    }).join('');
-  }
-
-  async salvarDesignacao() {
-    const ativId = document.getElementById('desigAtiv').value;
-    const respId = document.getElementById('desigResp').value;
-    if (!ativId || !respId) { UI.toast('Selecione atividade e responsável', 'error'); return; }
-    try {
-      await this.#db.insert('designacoes', {
-        atividade_id: ativId, responsavel_id: respId,
-        data_inicio: document.getElementById('desigInicio').value || null,
-        data_fim:    document.getElementById('desigFim').value    || null,
-        observacao:  document.getElementById('desigObs').value.trim()
-      });
-      UI.toast('Designação criada ✅'); UI.closeModal('modalDesignacao');
-      await this.#loadAll(); this.#renderDesignacoes();
-    } catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
-  }
-
-  async deleteDesignacao(id) {
-    if (!confirm('Excluir?')) return;
-    try {
-      await this.#db.remove('designacoes', id);
-      UI.toast('Designação excluída'); await this.#loadAll(); this.#renderDesignacoes();
-    } catch (e) { UI.toast('Erro: ' + e.message, 'error'); }
-  }
-
   // ── GESTÃO DE ÁREA ────────────────────────────────────────
   #renderGestao() {
     UI.populateSelect('gestaoGestor', this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
@@ -969,18 +919,12 @@ class App {
     window.closeModalOut    = (e, id) => UI.closeModalOut(e, id);
     window.renderAtividades = ()    => this.renderAtividades();
     window.salvarAtividade  = ()    => this.salvarAtividade();
-    window.salvarDesignacao = ()    => this.salvarDesignacao();
     window.salvarGestao     = ()    => this.salvarGestao();
     window.salvarResponsavel= ()    => this.salvarResponsavel();
     window.gerarRelatorio   = ()    => this.gerarRelatorio();
 
     window.openModal = id => {
       if (id === 'modalAtividade') { this.openModalAtividade(); return; }
-      if (id === 'modalDesignacao') {
-        UI.populateSelect('desigAtiv', this.#state.atividades, a => a.id, a => `${Periodo.icone(a.recorrencia)} ${a.nome}`);
-        UI.populateSelect('desigResp', this.#state.responsaveis, r => r.id, r => `${r.emoji} ${r.nome}`);
-        ['desigId','desigInicio','desigFim','desigObs'].forEach(i => { document.getElementById(i).value = ''; });
-      }
       if (id === 'modalGestao') {
         ['gestaoId','gestaoNome','gestaoDesc'].forEach(i => { document.getElementById(i).value = ''; });
         document.getElementById('modalGestaoTitle').textContent = 'Nova Área de Gestão';
