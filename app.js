@@ -28,8 +28,14 @@ class Periodo {
     return null;
   }
 
-  static iso(date)           { return date.toISOString().slice(0, 10); }
-  static hoje()              { return Periodo.iso(new Date()); }
+  // Usa data LOCAL (não UTC) — evita virada antecipada por fuso horário
+  static iso(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  static hoje() { return Periodo.iso(new Date()); }
   static icone(rec)          { return { diaria:'☀️', semanal:'📅', mensal:'📆', unica:'📌' }[rec] ?? '📋'; }
   static label(rec)          { return { diaria:'Diária', semanal:'Semanal', mensal:'Mensal', unica:'Única vez' }[rec] ?? rec; }
   static labelPeriodo(rec)   { return { diaria:'hoje', semanal:'esta semana', mensal:'este mês', unica:'' }[rec] ?? ''; }
