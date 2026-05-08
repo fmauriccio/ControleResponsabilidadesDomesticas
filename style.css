@@ -1038,6 +1038,146 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   color: var(--accent);
 }
 
+/* ===== RESP GROUP (Atividades agrupadas) ===== */
+.resp-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.resp-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  flex-wrap: wrap;
+}
+
+.resp-group-me .resp-group-header {
+  border-color: rgba(108,99,255,0.35);
+  background: rgba(108,99,255,0.07);
+}
+
+.resp-group-none .resp-group-header {
+  background: var(--surface2);
+  opacity: 0.7;
+}
+
+.resp-group-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.resp-group-emoji {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.resp-group-name {
+  font-family: var(--font-head);
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.resp-group-sub {
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 2px;
+}
+
+.resp-group-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Badge "Você" nos grupos e cards */
+.you-badge {
+  font-size: 10px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), #8b5cf6);
+  color: #fff;
+  border-radius: 20px;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+
+/* Card do responsável com destaque para "Você" */
+.resp-card-me {
+  border-color: rgba(108,99,255,0.35) !important;
+  background: rgba(108,99,255,0.06) !important;
+  position: relative;
+}
+
+.resp-me-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), #8b5cf6);
+  color: #fff;
+  border-radius: 20px;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.resp-linked-badge {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 4px;
+}
+
+.resp-link-btn {
+  font-size: 12px;
+  padding: 6px 12px;
+  margin-top: 4px;
+  min-height: 34px;
+}
+
+/* Alerta do dashboard quando sem vínculo */
+.dash-alert {
+  background: rgba(249,202,36,0.1);
+  border: 1px solid rgba(249,202,36,0.3);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.dash-alert-icon { font-size: 24px; flex-shrink: 0; }
+
+.dash-alert-title {
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--accent4);
+  margin-bottom: 4px;
+}
+
+.dash-alert-desc {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.5;
+}
+
 /* ===== UTILS ===== */
 .hidden { display: none !important; }
 .striked { text-decoration: line-through; opacity: 0.5; }
