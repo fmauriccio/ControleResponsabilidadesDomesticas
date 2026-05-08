@@ -11,7 +11,7 @@
 </head>
 <body>
 
-<!-- ══ AUTH ══════════════════════════════════════════════════ -->
+<!-- AUTH SCREEN -->
 <div id="authScreen" class="auth-screen">
   <div class="auth-bg">
     <div class="auth-blob b1"></div>
@@ -23,29 +23,29 @@
       <span class="logo-icon">⌂</span>
       <span class="logo-text">CasaFlow</span>
     </div>
-    <div class="auth-tabs">
-      <button class="tab-btn active" onclick="switchTab('login')" type="button">Entrar</button>
-      <button class="tab-btn" onclick="switchTab('register')" type="button">Cadastrar</button>
+    <div id="authTabs" class="auth-tabs">
+      <button class="tab-btn active" onclick="switchTab('login')">Entrar</button>
+      <button class="tab-btn" onclick="switchTab('register')">Cadastrar</button>
     </div>
 
-    <!-- Login -->
+    <!-- LOGIN -->
     <div id="loginForm" class="auth-form">
       <div class="field-group">
         <label>Usuário</label>
         <input type="text" id="loginUser" placeholder="seu usuário" autocomplete="username">
       </div>
       <div class="field-group">
-        <label>Senha</label>
+        <label>Senha <span class="hint">(4–8 caracteres)</span></label>
         <div class="pwd-wrap">
           <input type="password" id="loginPass" placeholder="••••••••" maxlength="8" autocomplete="current-password">
           <button class="eye-btn" onclick="togglePwd('loginPass',this)" type="button">👁</button>
         </div>
       </div>
       <div id="loginError" class="error-msg"></div>
-      <button class="btn-primary full" onclick="doLogin()" type="button">Entrar</button>
+      <button class="btn-primary full" onclick="doLogin()">Entrar</button>
     </div>
 
-    <!-- Cadastro -->
+    <!-- REGISTER -->
     <div id="registerForm" class="auth-form hidden">
       <div class="field-group">
         <label>Nome completo</label>
@@ -56,7 +56,7 @@
         <input type="text" id="regUser" placeholder="ex: maria" autocomplete="username">
       </div>
       <div class="field-group">
-        <label>Senha <span class="hint">(mín. 4 caracteres)</span></label>
+        <label>Senha <span class="hint">(4–8 caracteres)</span></label>
         <div class="pwd-wrap">
           <input type="password" id="regPass" placeholder="mín. 4 caracteres" minlength="4" maxlength="8" autocomplete="new-password">
           <button class="eye-btn" onclick="togglePwd('regPass',this)" type="button">👁</button>
@@ -70,43 +70,56 @@
         </div>
       </div>
       <div id="regError" class="error-msg"></div>
-      <button class="btn-primary full" onclick="doRegister()" type="button">Criar conta</button>
+      <button class="btn-primary full" onclick="doRegister()">Criar conta</button>
     </div>
   </div>
 </div>
 
-<!-- ══ APP ════════════════════════════════════════════════════ -->
+<!-- APP -->
 <div id="app" class="app hidden">
 
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-top">
-      <div class="auth-logo" style="margin:0">
+      <div class="app-logo">
         <span class="logo-icon">⌂</span>
         <span class="logo-text">CasaFlow</span>
       </div>
-      <button class="sidebar-close" onclick="toggleSidebar()" type="button" aria-label="Fechar">✕</button>
+      <button class="sidebar-close" onclick="toggleSidebar()" aria-label="Fechar menu">✕</button>
     </div>
     <nav class="nav-menu">
-      <a class="nav-item" onclick="showPage('dashboard')" data-page="dashboard"><span class="nav-icon">◈</span> Dashboard</a>
-      <a class="nav-item" onclick="showPage('atividades')" data-page="atividades"><span class="nav-icon">◉</span> Atividades</a>
-      <a class="nav-item" onclick="showPage('designacoes')" data-page="designacoes"><span class="nav-icon">◎</span> Designações</a>
-      <a class="nav-item" onclick="showPage('gestao')" data-page="gestao"><span class="nav-icon">◐</span> Gestão de Área</a>
-      <a class="nav-item" onclick="showPage('responsaveis')" data-page="responsaveis"><span class="nav-icon">◑</span> Responsáveis</a>
-      <a class="nav-item" onclick="showPage('relatorios')" data-page="relatorios"><span class="nav-icon">◒</span> Relatórios</a>
+      <a class="nav-item active" onclick="showPage('dashboard')" data-page="dashboard">
+        <span class="nav-icon">◈</span> Dashboard
+      </a>
+      <a class="nav-item" onclick="showPage('atividades')" data-page="atividades">
+        <span class="nav-icon">◉</span> Atividades
+      </a>
+      <a class="nav-item" onclick="showPage('designacoes')" data-page="designacoes">
+        <span class="nav-icon">◎</span> Designações
+      </a>
+      <a class="nav-item" onclick="showPage('gestao')" data-page="gestao">
+        <span class="nav-icon">◐</span> Gestão de Área
+      </a>
+      <a class="nav-item" onclick="showPage('responsaveis')" data-page="responsaveis">
+        <span class="nav-icon">◑</span> Responsáveis
+      </a>
+      <a class="nav-item" onclick="showPage('relatorios')" data-page="relatorios">
+        <span class="nav-icon">◒</span> Relatórios
+      </a>
     </nav>
     <div class="sidebar-footer">
       <div class="user-chip" id="sidebarUser"></div>
-      <button class="logout-btn" onclick="doLogout()" type="button">↩ Sair</button>
+      <button class="logout-btn" onclick="doLogout()">↩ Sair</button>
     </div>
   </aside>
 
   <!-- TOPBAR -->
   <header class="topbar">
-    <button class="menu-btn" onclick="toggleSidebar()" type="button" aria-label="Menu">☰</button>
+    <button class="menu-btn" onclick="toggleSidebar()" aria-label="Abrir menu">☰</button>
     <div class="page-title" id="pageTitle">Dashboard</div>
     <div class="topbar-right">
       <span class="date-badge" id="dateBadge"></span>
+      <span class="date-badge" id="myRespBadge" style="background:rgba(108,99,255,0.15);border-color:rgba(108,99,255,0.3);color:var(--accent)"></span>
       <div class="user-avatar" id="topAvatar"></div>
     </div>
   </header>
@@ -115,62 +128,63 @@
   <main class="main-content">
 
     <!-- DASHBOARD -->
-    <section id="page-dashboard" class="page hidden">
+    <section id="page-dashboard" class="page active">
       <div class="section-header">
-        <h2>Olá, <span id="greetUser"></span> 👋</h2>
-        <button class="btn-primary" onclick="showPage('atividades')" type="button">+ Atividade</button>
+        <h2>Visão Geral <span id="greetUser"></span></h2>
       </div>
-
       <div class="stats-grid" id="statsGrid"></div>
 
-      <!-- Seções de tarefas por recorrência -->
-      <div class="task-sections">
-        <div class="task-section" id="sectionDiarias"></div>
-        <div class="task-section" id="sectionSemanais"></div>
-        <div class="task-section" id="sectionMensais"></div>
-        <div class="task-section" id="sectionUnicas"></div>
-      </div>
-
-      <!-- Gráficos -->
-      <div class="section-header mt">
-        <h3>📊 Visão Gráfica</h3>
+      <!-- Alerta: sem responsável vinculado -->
+      <div id="dashAlert" class="dash-alert hidden">
+        <div class="dash-alert-icon">⚠️</div>
+        <div>
+          <div class="dash-alert-title">Nenhum responsável vinculado à sua conta</div>
+          <div class="dash-alert-desc">
+            Vá em <strong>Responsáveis</strong>, clique em <strong>🔗 Vincular</strong> no seu perfil,
+            ou crie um novo responsável e ele será vinculado automaticamente.
+            Assim, o dashboard mostrará apenas as suas atividades.
+          </div>
+        </div>
       </div>
       <div class="charts-row">
-        <div class="chart-card">
-          <div class="chart-title">Concluídas por Período</div>
+        <div class="chart-card wide">
+          <div class="chart-title">Conclusão por Responsável</div>
           <canvas id="chartBar"></canvas>
         </div>
         <div class="chart-card">
-          <div class="chart-title">Distribuição por Tipo</div>
+          <div class="chart-title">Status das Atividades</div>
           <canvas id="chartDoughnut"></canvas>
         </div>
       </div>
       <div class="charts-row">
-        <div class="chart-card">
-          <div class="chart-title">Conclusões — Últimos 7 dias</div>
+        <div class="chart-card wide">
+          <div class="chart-title">Atividades por Período</div>
           <canvas id="chartPeriod"></canvas>
         </div>
         <div class="chart-card">
-          <div class="chart-title">Atividades por Área</div>
+          <div class="chart-title">Distribuição por Área</div>
           <canvas id="chartArea"></canvas>
         </div>
       </div>
+      <div class="section-header mt">
+        <h3>Atividades de Hoje</h3>
+      </div>
+      <div id="todayList" class="today-list"></div>
     </section>
 
     <!-- ATIVIDADES -->
     <section id="page-atividades" class="page hidden">
       <div class="section-header">
         <h2>Atividades</h2>
-        <button class="btn-primary" onclick="openModal('modalAtividade')" type="button">+ Nova</button>
+        <button class="btn-primary" onclick="openModal('modalAtividade')">+ Nova Atividade</button>
       </div>
       <div class="filter-bar">
-        <input type="text" id="searchAtiv" placeholder="🔍 Buscar..." oninput="renderAtividades()">
-        <select id="filterRecorr" onchange="renderAtividades()">
-          <option value="">Todas as recorrências</option>
-          <option value="diaria">☀️ Diárias</option>
-          <option value="semanal">📅 Semanais</option>
-          <option value="mensal">📆 Mensais</option>
-          <option value="unica">📌 Únicas</option>
+        <input type="text" id="searchAtiv" placeholder="🔍 Buscar atividade..." oninput="renderAtividades()">
+        <select id="filterStatus" onchange="renderAtividades()">
+          <option value="">Todos os status</option>
+          <option value="pendente">Pendente</option>
+          <option value="em_andamento">Em andamento</option>
+          <option value="concluida">Concluída</option>
         </select>
         <select id="filterResp" onchange="renderAtividades()">
           <option value="">Todos responsáveis</option>
@@ -183,18 +197,18 @@
     <section id="page-designacoes" class="page hidden">
       <div class="section-header">
         <h2>Designações</h2>
-        <button class="btn-primary" onclick="openModal('modalDesignacao')" type="button">+ Nova</button>
+        <button class="btn-primary" onclick="openModal('modalDesignacao')">+ Nova Designação</button>
       </div>
       <div id="designList" class="card-grid"></div>
     </section>
 
-    <!-- GESTÃO -->
+    <!-- GESTÃO DE ÁREA -->
     <section id="page-gestao" class="page hidden">
       <div class="section-header">
         <h2>Gestão de Área</h2>
-        <button class="btn-primary" onclick="openModal('modalGestao')" type="button">+ Nova Área</button>
+        <button class="btn-primary" onclick="openModal('modalGestao')">+ Nova Área</button>
       </div>
-      <p class="sub-desc">Agrupe responsáveis em áreas com um gestor líder.</p>
+      <p class="sub-desc">Áreas maiores onde um responsável lidera e designa os outros membros.</p>
       <div id="gestaoList" class="gestao-grid"></div>
     </section>
 
@@ -202,7 +216,7 @@
     <section id="page-responsaveis" class="page hidden">
       <div class="section-header">
         <h2>Responsáveis</h2>
-        <button class="btn-primary" onclick="openModal('modalResponsavel')" type="button">+ Adicionar</button>
+        <button class="btn-primary" onclick="openModal('modalResponsavel')">+ Adicionar</button>
       </div>
       <div id="respList" class="resp-grid"></div>
     </section>
@@ -216,14 +230,15 @@
         <select id="repResp">
           <option value="">Todos responsáveis</option>
         </select>
-        <select id="repRecorr">
-          <option value="">Todas as recorrências</option>
-          <option value="diaria">☀️ Diárias</option>
-          <option value="semanal">📅 Semanais</option>
-          <option value="mensal">📆 Mensais</option>
-          <option value="unica">📌 Únicas</option>
+        <select id="repPeriodo">
+          <option value="">Todos os períodos</option>
+          <option value="Manhã">Manhã</option>
+          <option value="Tarde">Tarde</option>
+          <option value="Noite">Noite</option>
+          <option value="Semanal">Semanal</option>
+          <option value="Mensal">Mensal</option>
         </select>
-        <button class="btn-secondary" onclick="gerarRelatorio()" type="button">Gerar</button>
+        <button class="btn-secondary" onclick="gerarRelatorio()">Gerar Relatório</button>
       </div>
       <div id="relatorioContent"></div>
     </section>
@@ -231,7 +246,7 @@
   </main>
 </div>
 
-<!-- ══ MODAIS ════════════════════════════════════════════════ -->
+<!-- MODALS -->
 
 <!-- Modal Atividade -->
 <div id="modalAtividade" class="modal-overlay hidden" onclick="closeModalOut(event,'modalAtividade')">
@@ -244,47 +259,55 @@
       <input type="hidden" id="ativId">
       <div class="field-group">
         <label>Nome da Atividade *</label>
-        <input type="text" id="ativNome" placeholder="ex: Lavar a Louça">
+        <input type="text" id="ativNome" placeholder="ex: Lavar Louça">
       </div>
       <div class="field-group">
-        <label>Descrição / Observação</label>
-        <textarea id="ativDesc" rows="2" placeholder="Detalhes opcionais..."></textarea>
+        <label>Descrição</label>
+        <textarea id="ativDesc" placeholder="Detalhes da atividade..." rows="2"></textarea>
       </div>
       <div class="form-row">
         <div class="field-group">
-          <label>Recorrência *</label>
+          <label>Período / Sub-atividade</label>
+          <input type="text" id="ativPeriodo" placeholder="ex: Manhã, Semanal...">
+        </div>
+        <div class="field-group">
+          <label>Recorrência</label>
           <select id="ativRecorrencia">
-            <option value="diaria">☀️ Diária — aparece todo dia</option>
-            <option value="semanal">📅 Semanal — aparece toda semana</option>
-            <option value="mensal">📆 Mensal — aparece todo mês</option>
-            <option value="unica">📌 Única vez — conclusão permanente</option>
+            <option value="diaria">Diária</option>
+            <option value="semanal">Semanal</option>
+            <option value="mensal">Mensal</option>
+            <option value="unica">Única vez</option>
           </select>
         </div>
-        <div class="field-group">
-          <label>Horário / Sub-período</label>
-          <input type="text" id="ativPeriodo" placeholder="ex: Manhã, 07h, Sábado...">
-        </div>
       </div>
       <div class="form-row">
         <div class="field-group">
-          <label>Responsável</label>
+          <label>Responsável Principal</label>
           <select id="ativResp">
             <option value="">— Selecionar —</option>
           </select>
         </div>
         <div class="field-group">
-          <label>Área de Gestão</label>
-          <select id="ativGestao">
-            <option value="">— Nenhuma —</option>
+          <label>Status</label>
+          <select id="ativStatus">
+            <option value="pendente">Pendente</option>
+            <option value="em_andamento">Em andamento</option>
+            <option value="concluida">Concluída</option>
           </select>
         </div>
       </div>
       <div class="field-group">
+        <label>Área de Gestão (opcional)</label>
+        <select id="ativGestao">
+          <option value="">— Nenhuma —</option>
+        </select>
+      </div>
+      <div class="field-group">
         <label>Prioridade</label>
-        <div class="priority-btns">
-          <button class="prio-btn" data-val="baixa" onclick="setPriority(this)" type="button">🟢 Baixa</button>
-          <button class="prio-btn active" data-val="media" onclick="setPriority(this)" type="button">🟡 Média</button>
-          <button class="prio-btn" data-val="alta" onclick="setPriority(this)" type="button">🔴 Alta</button>
+        <div class="priority-btns" id="ativPriorid">
+          <button class="prio-btn" data-val="baixa" onclick="setPriority(this)" type="button">Baixa</button>
+          <button class="prio-btn active" data-val="media" onclick="setPriority(this)" type="button">Média</button>
+          <button class="prio-btn" data-val="alta" onclick="setPriority(this)" type="button">Alta</button>
         </div>
       </div>
     </div>
@@ -306,19 +329,29 @@
       <input type="hidden" id="desigId">
       <div class="field-group">
         <label>Atividade *</label>
-        <select id="desigAtiv"><option value="">— Selecionar —</option></select>
+        <select id="desigAtiv">
+          <option value="">— Selecionar atividade —</option>
+        </select>
       </div>
       <div class="field-group">
-        <label>Responsável *</label>
-        <select id="desigResp"><option value="">— Selecionar —</option></select>
+        <label>Responsável designado *</label>
+        <select id="desigResp">
+          <option value="">— Selecionar responsável —</option>
+        </select>
       </div>
       <div class="form-row">
-        <div class="field-group"><label>Data início</label><input type="date" id="desigInicio"></div>
-        <div class="field-group"><label>Data fim</label><input type="date" id="desigFim"></div>
+        <div class="field-group">
+          <label>Data início</label>
+          <input type="date" id="desigInicio">
+        </div>
+        <div class="field-group">
+          <label>Data fim</label>
+          <input type="date" id="desigFim">
+        </div>
       </div>
       <div class="field-group">
         <label>Observação</label>
-        <textarea id="desigObs" rows="2" placeholder="Notas adicionais..."></textarea>
+        <textarea id="desigObs" rows="2" placeholder="Detalhes adicionais..."></textarea>
       </div>
     </div>
     <div class="modal-footer">
@@ -339,15 +372,17 @@
       <input type="hidden" id="gestaoId">
       <div class="field-group">
         <label>Nome da Área *</label>
-        <input type="text" id="gestaoNome" placeholder="ex: Cozinha, Quintal...">
+        <input type="text" id="gestaoNome" placeholder="ex: Cuidados com a Casa">
       </div>
       <div class="field-group">
         <label>Descrição</label>
-        <textarea id="gestaoDesc" rows="2" placeholder="Descreva as responsabilidades..."></textarea>
+        <textarea id="gestaoDesc" rows="2" placeholder="Descreva a área de responsabilidade..."></textarea>
       </div>
       <div class="field-group">
-        <label>Gestor (líder)</label>
-        <select id="gestaoGestor"><option value="">— Selecionar —</option></select>
+        <label>Gestor Responsável (líder) *</label>
+        <select id="gestaoGestor">
+          <option value="">— Selecionar —</option>
+        </select>
       </div>
       <div class="field-group">
         <label>Membros da equipe</label>
@@ -378,7 +413,7 @@
         <input type="text" id="respApelido" placeholder="Como é chamado(a)">
       </div>
       <div class="field-group">
-        <label>Avatar / Emoji</label>
+        <label>Emoji / Avatar</label>
         <div class="emoji-picker" id="emojiPicker"></div>
       </div>
     </div>
